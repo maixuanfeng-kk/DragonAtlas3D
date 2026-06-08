@@ -8,7 +8,7 @@ import {
   pointInFeature,
   projectLonLat,
 } from "./geo.js";
-import { loadRasterTile, loadTerrariumTile } from "./dataSources.js";
+import { loadRasterTile, loadTerrariumTile, rasterSourceInfo } from "./dataSources.js";
 
 const NO_DATA_FLOOR = -11000;
 const HEIGHT_SCALE = 0.00043;
@@ -527,6 +527,26 @@ function isInsideAnyFeature(lon, lat, preparedFeatures) {
   });
 }
 
+function rasterLoadSummary(results, source = "imagery") {
+  const sourceInfo = rasterSourceInfo(source);
+  const loaded = results.filter((result) => result.status === "fulfilled").length;
+  const requested = results.length;
+  const failed = requested - loaded;
+  const firstError = results.find((result) => result.status === "rejected")?.reason;
+
+  return {
+    id: sourceInfo.id,
+    label: sourceInfo.label,
+    serviceUrl: sourceInfo.serviceUrl,
+    attribution: sourceInfo.attribution,
+    status: failed === 0 ? "ready" : loaded > 0 ? "partial" : "failed",
+    requested,
+    loaded,
+    failed,
+    error: firstError instanceof Error ? firstError.message : firstError ? String(firstError) : "",
+  };
+}
+
 export async function buildTerrainSurface({ bounds, size, features, level }) {
   const { demZoom, tiles } = chooseDemTiles(bounds, level);
   const { rasterZoom, tiles: rasterTiles } = chooseRasterTiles(bounds, level);
@@ -547,6 +567,8 @@ export async function buildTerrainSurface({ bounds, size, features, level }) {
       .filter((result) => result.status === "fulfilled")
       .map((result) => [tileKey(result.value.z, result.value.x, result.value.y), result.value]),
   );
+  const imagery = rasterLoadSummary(loadedRasterResults, "imagery");
+  const hillshade = rasterLoadSummary(loadedHillshadeResults, "hillshade");
   const maskFeatures = prepareMaskFeatures(features);
   const exaggeration = exaggerationForLevel(level);
   const textureBlend = detailForLevel(level).textureBlend;
@@ -658,6 +680,8 @@ export async function buildTerrainSurface({ bounds, size, features, level }) {
     rasterZoom,
     rasterTiles: rasterMap.size,
     hillshadeTiles: hillshadeMap.size,
+    imagery,
+    hillshade,
     stats: {
       cells,
       minElevation: Number.isFinite(minElevation) ? Math.round(minElevation) : 0,

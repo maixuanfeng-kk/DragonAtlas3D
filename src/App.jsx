@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { datavBoundaryUrl, datavSingleBoundaryUrl, loadAdminGeoJson, loadRiverGeoJson, loadTownshipGeoJson } from "./map/dataSources.js";
+import {
+  datavBoundaryUrl,
+  datavSingleBoundaryUrl,
+  loadAdminGeoJson,
+  loadRiverGeoJson,
+  loadTownshipGeoJson,
+  rasterSourceInfo,
+} from "./map/dataSources.js";
 import {
   CHINA_BOUNDS,
   clamp,
@@ -48,6 +55,17 @@ const NANSHA_MARKERS = [
   { name: "南沙群岛", center: [113.7, 9.8], label: true },
 ];
 
+function initialRasterStats(source = "imagery") {
+  return {
+    ...rasterSourceInfo(source),
+    status: "pending",
+    requested: 0,
+    loaded: 0,
+    failed: 0,
+    error: "",
+  };
+}
+
 const INITIAL_STATS = {
   cells: 0,
   maxElevation: 0,
@@ -56,8 +74,19 @@ const INITIAL_STATS = {
   rasterZoom: 0,
   rasterTiles: 0,
   hillshadeTiles: 0,
+  imagery: initialRasterStats("imagery"),
+  hillshade: initialRasterStats("hillshade"),
   featureCount: 0,
 };
+
+function sourceStatusText(status) {
+  return {
+    pending: "等待加载",
+    ready: "已加载",
+    partial: "部分加载",
+    failed: "加载失败",
+  }[status] || status;
+}
 
 function levelName(level) {
   return {
@@ -688,6 +717,8 @@ export default function App() {
           rasterZoom: terrain.rasterZoom,
           rasterTiles: terrain.rasterTiles,
           hillshadeTiles: terrain.hillshadeTiles,
+          imagery: terrain.imagery,
+          hillshade: terrain.hillshade,
           featureCount: namedFeatures.length,
         });
         setSearch("");
@@ -1424,10 +1455,26 @@ export default function App() {
             <dd>z{stats.demZoom} / {stats.tiles} tiles</dd>
           </div>
           <div>
-            <dt>真实贴图</dt>
-            <dd>z{stats.rasterZoom} / {stats.rasterTiles}+{stats.hillshadeTiles}</dd>
+            <dt>免费影像</dt>
+            <dd>{sourceStatusText(stats.imagery.status)}</dd>
+          </div>
+          <div>
+            <dt>影像来源</dt>
+            <dd title={stats.imagery.label}>{stats.imagery.label}</dd>
+          </div>
+          <div>
+            <dt>影像瓦片</dt>
+            <dd>
+              z{stats.rasterZoom} / {stats.imagery.loaded}/{stats.imagery.requested}
+            </dd>
           </div>
         </dl>
+        <div className={`source-note is-${stats.imagery.status}`}>
+          <strong>行政区边界：DataV areas_v3 GeoJSON API</strong>
+          <span>影像底图：{stats.imagery.label}，无 key；不使用 Bing/Azure，也不做自动兜底。</span>
+          <small>{stats.imagery.attribution}</small>
+          {stats.imagery.error && <small>影像错误：{stats.imagery.error}</small>}
+        </div>
         <label className="api-box">
           GeoJSON API
           <textarea readOnly value={panelApi} />
@@ -1455,7 +1502,7 @@ export default function App() {
           <div className="loading-card">
             <span className="loading-tag">LOADING REAL TERRAIN</span>
             <h2>加载真实高程地势</h2>
-            <p>正在请求 DataV 行政边界、Terrarium DEM、真实影像和山体阴影瓦片。</p>
+            <p>正在请求 DataV 行政边界、Terrarium DEM、ArcGIS 免费影像和山体阴影瓦片。</p>
           </div>
         </div>
       )}

@@ -381,6 +381,52 @@ button {
   white-space: nowrap;
 }
 
+.source-note {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+  border: 1px solid rgba(46, 90, 77, 0.16);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 244, 0.48);
+  color: rgba(27, 33, 27, 0.72);
+}
+
+.source-note strong,
+.source-note span,
+.source-note small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.source-note strong {
+  color: var(--green-dark);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.source-note span {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.source-note small {
+  color: rgba(27, 33, 27, 0.52);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.source-note.is-failed {
+  border-color: rgba(151, 67, 47, 0.35);
+  background: rgba(255, 236, 222, 0.56);
+}
+
+.source-note.is-partial {
+  border-color: rgba(180, 136, 63, 0.35);
+  background: rgba(255, 247, 220, 0.58);
+}
+
 .api-box {
   display: block;
   color: var(--muted);

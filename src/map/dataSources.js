@@ -3,6 +3,19 @@ export const TERRARIUM_BASE = "https://s3.amazonaws.com/elevation-tiles-prod/ter
 export const ARCGIS_IMAGERY_BASE = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile";
 export const ARCGIS_HILLSHADE_BASE =
   "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile";
+export const FREE_IMAGERY_SOURCE = {
+  id: "arcgis-imagery",
+  label: "ArcGIS World Imagery",
+  serviceUrl: `${ARCGIS_IMAGERY_BASE.replace(/\/tile$/, "")}?f=pjson`,
+  attribution: "Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+};
+export const HILLSHADE_SOURCE = {
+  id: "arcgis-hillshade",
+  label: "ArcGIS World Hillshade",
+  serviceUrl: `${ARCGIS_HILLSHADE_BASE.replace(/\/tile$/, "")}?f=pjson`,
+  attribution:
+    "Sources: Esri, Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, N Robinson, NCEAS, NLS, OS, NMA, Geodatastyrelsen, Rijkswaterstaat, GSA, Geoland, FEMA, Intermap, and the GIS user community",
+};
 
 const geoJsonCache = new Map();
 const demTileCache = new Map();
@@ -245,6 +258,10 @@ export function rasterTileUrl(tile, source = "imagery") {
   return `${base}/${tile.z}/${tile.y}/${tile.x}`;
 }
 
+export function rasterSourceInfo(source = "imagery") {
+  return source === "hillshade" ? HILLSHADE_SOURCE : FREE_IMAGERY_SOURCE;
+}
+
 export async function loadAdminGeoJson(adcode) {
   const key = String(adcode);
   if (geoJsonCache.has(key)) {
@@ -325,6 +342,7 @@ export async function loadRasterTile(tile, source = "imagery") {
     return rasterTileCache.get(key);
   }
 
+  const sourceInfo = rasterSourceInfo(source);
   const request = fetch(rasterTileUrl(tile, source))
     .then(async (response) => {
       if (!response.ok) {
@@ -343,7 +361,9 @@ export async function loadRasterTile(tile, source = "imagery") {
 
       return {
         ...tile,
-        source,
+        source: sourceInfo.id,
+        providerLabel: sourceInfo.label,
+        attribution: sourceInfo.attribution,
         width: canvas.width,
         height: canvas.height,
         pixels: context.getImageData(0, 0, canvas.width, canvas.height).data,
