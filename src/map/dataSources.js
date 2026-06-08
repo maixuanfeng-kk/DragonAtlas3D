@@ -17,19 +17,20 @@ export const HILLSHADE_SOURCE = {
     "Sources: Esri, Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, N Robinson, NCEAS, NLS, OS, NMA, Geodatastyrelsen, Rijkswaterstaat, GSA, Geoland, FEMA, Intermap, and the GIS user community",
 };
 
+import { clearTownshipCaches, loadTownshipGeoJson, townshipBoundaryUrl } from "./townships.js";
+
+export { clearTownshipCaches, loadTownshipGeoJson, townshipBoundaryUrl };
+
 const geoJsonCache = new Map();
 const demTileCache = new Map();
 const rasterTileCache = new Map();
 const riverGeoJsonCache = new Map();
-const townshipDirectoryCache = new Map();
-const townshipGeoJsonCache = new Map();
 
 export const RIVER_DATA_URLS = {
   major: "/data/rivers/china-major-rivers.geojson",
   tributary: "/data/rivers/china-tributary-rivers.geojson",
 };
 
-const TOWNSHIP_GITHUB_API = "https://api.github.com/repos/rooma1989/china_geo_data/contents";
 const YANGTZE_SOURCE_IDS = new Set(["ne10m-756", "ne10m-758", "ne10m-760", "ne10m-763", "ne10m-745"]);
 const YANGTZE_ESTUARY_EXTENSION = [
   [119.60635, 32.19689],
@@ -44,19 +45,6 @@ const YANGTZE_ESTUARY_EXTENSION = [
   [121.86, 31.34],
   [122.12, 31.28],
 ];
-
-function githubContentsUrl(path) {
-  return `${TOWNSHIP_GITHUB_API}/${path.split("/").map(encodeURIComponent).join("/")}?ref=main`;
-}
-
-function emptyTownshipCollection(path) {
-  return {
-    type: "FeatureCollection",
-    features: [],
-    __sourceUrl: githubContentsUrl(path),
-    __directoryPath: path,
-  };
-}
 
 function geometryToLines(geometry) {
   if (!geometry) {
@@ -146,99 +134,6 @@ function completeMajorRiverSystems(geojson) {
       ...features.filter((feature) => !YANGTZE_SOURCE_IDS.has(feature.properties?.id)),
     ],
   };
-}
-
-function decodeBase64Utf8(content = "") {
-  const binary = atob(content.replace(/\n/g, ""));
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder("utf-8").decode(bytes);
-}
-
-function featureFromGeoJson(geojson, fallbackName, sourceUrl) {
-  const source =
-    geojson?.type === "FeatureCollection" || geojson?.type === "Feature" || geojson?.type === "Polygon" || geojson?.type === "MultiPolygon"
-      ? geojson
-      : geojson?.geojson || geojson?.geometry || null;
-  const features =
-    source?.type === "FeatureCollection"
-      ? source.features || []
-      : source?.type === "Feature"
-        ? [source]
-        : source?.type === "Polygon" || source?.type === "MultiPolygon"
-          ? [{ type: "Feature", properties: {}, geometry: source }]
-          : [];
-
-  return features
-    .filter((feature) => feature?.geometry)
-    .map((feature, index) => ({
-      ...feature,
-      properties: {
-        ...(feature.properties || {}),
-        name: feature.properties?.name || fallbackName,
-        adcode: feature.properties?.adcode || `township-${fallbackName}-${index}`,
-        level: "township",
-        sourceUrl,
-      },
-    }));
-}
-
-async function loadTownshipDirectory(path) {
-  if (townshipDirectoryCache.has(path)) {
-    return townshipDirectoryCache.get(path);
-  }
-
-  const request = fetch(githubContentsUrl(path), {
-    headers: {
-      Accept: "application/vnd.github+json",
-    },
-  }).then(async (response) => {
-    if (response.status === 404) {
-      return [];
-    }
-
-    if (!response.ok) {
-      throw new Error(`乡镇街道目录加载失败: ${response.status}`);
-    }
-
-    const items = await response.json();
-    return Array.isArray(items) ? items : [];
-  });
-
-  townshipDirectoryCache.set(path, request);
-  return request;
-}
-
-async function loadTownshipFile(item) {
-  const fallbackName = String(item.name || "")
-    .replace(/^geo_/, "")
-    .replace(/\.json$/i, "");
-  const sourceUrl = item.download_url || item.url;
-
-  try {
-    const response = await fetch(item.url, {
-      headers: {
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (response.ok) {
-      const payload = await response.json();
-      const geojson = JSON.parse(decodeBase64Utf8(payload.content || ""));
-      return featureFromGeoJson(geojson, fallbackName, sourceUrl);
-    }
-  } catch {
-    // Fall back to raw.githubusercontent.com below.
-  }
-
-  if (item.download_url) {
-    const rawResponse = await fetch(encodeURI(item.download_url));
-    if (rawResponse.ok) {
-      return featureFromGeoJson(await rawResponse.json(), fallbackName, sourceUrl);
-    }
-
-    throw new Error(`乡镇街道文件加载失败: ${rawResponse.status}`);
-  }
-
-  throw new Error("乡镇街道文件加载失败");
 }
 
 export function datavBoundaryUrl(adcode) {
@@ -403,57 +298,10 @@ export async function loadRiverGeoJson(kind = "major") {
   return request;
 }
 
-export function townshipBoundaryUrl({ provinceName, cityName, districtName }) {
-  const path = [provinceName, cityName, districtName].map((name) => String(name || "").trim()).filter(Boolean).join("/");
-  return path ? githubContentsUrl(path) : "";
-}
-
-export async function loadTownshipGeoJson({ provinceName, cityName, districtName, maxFiles = 80 }) {
-  const path = [provinceName, cityName, districtName].map((name) => String(name || "").trim()).filter(Boolean).join("/");
-  if (path.split("/").length < 3) {
-    return emptyTownshipCollection(path);
-  }
-
-  const key = `${path}:${maxFiles}`;
-  if (townshipGeoJsonCache.has(key)) {
-    return townshipGeoJsonCache.get(key);
-  }
-
-  const request = loadTownshipDirectory(path)
-    .then(async (items) => {
-      const files = items
-        .filter((item) => item.type === "file" && /^geo_.+\.json$/i.test(item.name || ""))
-        .slice(0, maxFiles);
-
-      if (!files.length) {
-        return emptyTownshipCollection(path);
-      }
-
-      const loadedFiles = await Promise.allSettled(files.map(loadTownshipFile));
-      const featureGroups = loadedFiles
-        .filter((result) => result.status === "fulfilled")
-        .map((result) => result.value);
-      return {
-        type: "FeatureCollection",
-        features: featureGroups.flat(),
-        __sourceUrl: githubContentsUrl(path),
-        __directoryPath: path,
-      };
-    })
-    .catch((error) => {
-      townshipGeoJsonCache.delete(key);
-      throw error;
-    });
-
-  townshipGeoJsonCache.set(key, request);
-  return request;
-}
-
 export function clearDataSourceCaches() {
   geoJsonCache.clear();
   demTileCache.clear();
   rasterTileCache.clear();
   riverGeoJsonCache.clear();
-  townshipDirectoryCache.clear();
-  townshipGeoJsonCache.clear();
+  clearTownshipCaches();
 }
