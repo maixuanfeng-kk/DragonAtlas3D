@@ -6,6 +6,7 @@ import { prepareResidentialLayerForNode } from "./residentialLayer.js";
 import { clearSceneLayers, resizeScene } from "./sceneRuntime.js";
 import { buildTerrainSurface } from "./terrain.js";
 import { DEFAULT_VIEW_ZOOM, featureListForSearch } from "./viewState.js";
+import { renderTravelNodeLayer } from "./wuhanTravelNodes.js";
 
 function deriveSize(bounds, previousSize) {
   if (previousSize?.width && previousSize?.depth) {
@@ -136,6 +137,7 @@ export async function renderDistrictScene(state, { node, features, sourceUrl, ne
     prepareResidentialLayerForNode(state, node);
     updatePoiSearchState(state, node);
     state.callbacks.setSearch("");
+    renderTravelNodeLayer(state, nextTrail);
     state.scheduleResidentialRefresh?.();
   } catch (error) {
     state.callbacks.setNotice(error instanceof Error ? error.message : "区级街道场景加载失败");

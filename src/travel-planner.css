@@ -1,0 +1,150 @@
+.planner-panel {
+  left: 14px;
+  bottom: 14px;
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(56vh, 620px);
+  overflow: auto;
+  padding: 12px;
+}
+
+.planner-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.planner-head h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.planner-add,
+.planner-actions button,
+.planner-chip,
+.planner-grid select {
+  min-height: 34px;
+  border: 1px solid rgba(46, 90, 77, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 251, 229, 0.78);
+  color: var(--green-dark);
+  font-weight: 800;
+}
+
+.planner-add,
+.planner-actions button {
+  padding: 0 12px;
+}
+
+.planner-add:disabled,
+.planner-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.planner-block {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.planner-block strong {
+  font-size: 12px;
+  color: var(--green-dark);
+}
+
+.planner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.planner-grid label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.planner-grid select {
+  width: 100%;
+  padding: 0 10px;
+}
+
+.planner-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.planner-chip {
+  padding: 0 10px;
+}
+
+.planner-chip.is-active,
+.planner-actions button:first-child,
+.planner-actions button:nth-child(2) {
+  background: var(--green);
+  color: #fff8dc;
+}
+
+.planner-empty,
+.planner-copy,
+.planner-list {
+  margin: 0;
+  color: rgba(27, 33, 27, 0.74);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.planner-copy.is-muted {
+  color: rgba(27, 33, 27, 0.56);
+}
+
+.planner-list {
+  padding-left: 18px;
+}
+
+.planner-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.planner-source-list {
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .planner-panel {
+    left: 10px;
+    bottom: auto;
+    top: 250px;
+    width: min(330px, calc(100vw - 20px));
+    max-height: 36vh;
+  }
+}
+
+@media (max-width: 680px) {
+  .planner-panel {
+    top: auto;
+    left: 10px;
+    bottom: 10px;
+    width: min(310px, calc(100vw - 20px));
+    max-height: 36vh;
+    padding: 10px;
+  }
+
+  .planner-head h2 {
+    font-size: 17px;
+  }
+
+  .planner-grid {
+    grid-template-columns: 1fr;
+  }
+}

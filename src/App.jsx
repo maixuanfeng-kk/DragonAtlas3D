@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { HudPanels } from "./components/HudPanels.jsx";
+import { TravelPlannerPanel } from "./components/TravelPlannerPanel.jsx";
 import { findFeatureAt, unprojectMapPoint } from "./map/geo.js";
 import { createSceneState, clearSceneLayers, setCameraForMode, setupSceneRuntime, resizeScene } from "./map/sceneRuntime.js";
 import { renderRegion } from "./map/regionRenderer.js";
 import { pickResidentialFeatureAt, updateResidentialLayer } from "./map/residentialLayer.js";
-import { chooseFeature as submitChooseFeature, selectPoiOnMap, submitSearch } from "./map/searchController.js";
+import { chooseFeature as submitChooseFeature, selectPoiOnMap, selectTravelFeatureOnMap, submitSearch } from "./map/searchController.js";
 import { updateDetailLayers } from "./map/sceneDetails.js";
+import { collectSceneLabelItems } from "./map/labelItems.js";
 import { updateLabelPositions } from "./map/overlays.js";
+import { syncTravelRouteLayer } from "./map/travelRouteLayer.js";
+import { pickTravelNodeAt } from "./map/wuhanTravelNodes.js";
 import {
   COUNTRY_NODE,
   initialResidentialLayerState,
@@ -17,6 +21,7 @@ import {
   MIN_VIEW_ZOOM,
   sourceUrlForNode,
 } from "./map/viewState.js";
+import { useTravelPlanner } from "./useTravelPlanner.js";
 
 export default function App() {
   const stageRef = useRef(null);
@@ -33,6 +38,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [poiSearchState, setPoiSearchState] = useState(initialPoiSearchState());
   const [residentialLayerState, setResidentialLayerState] = useState(initialResidentialLayerState());
+  const travelPlanner = useTravelPlanner(setNotice);
   const trailRef = useRef(trail);
   const cameraModeRef = useRef(cameraMode);
   const residentialLayerStateRef = useRef(residentialLayerState);
@@ -123,8 +129,13 @@ export default function App() {
         return;
       }
 
+      const travelFeature = pickTravelNodeAt(lonLat[0], lonLat[1], state.travelNodeLayer.features);
       const feature = findFeatureAt(lonLat[0], lonLat[1], state.context.namedFeatures);
       const poiFeature = pickResidentialFeatureAt(lonLat[0], lonLat[1], state.residentialLayer.features);
+      if (travelFeature) {
+        sceneApiRef.current?.selectTravelFeature(travelFeature);
+        return;
+      }
       if (poiFeature) {
         sceneApiRef.current?.selectPoiFeature(poiFeature);
         return;
@@ -267,15 +278,7 @@ export default function App() {
       state.terrainGroup.position.copy(state.pan);
       setCameraForMode(state);
       updateLabelPositions({
-        labelItems: [
-          ...state.labelItems,
-          ...state.tributaryRiverLayer.labels,
-          ...state.cityDetailLayer.labels,
-          ...state.districtDetailLayer.labels,
-          ...state.townshipDetailLayer.labels,
-          ...state.residentialLayer.labels,
-          ...state.poiLayer.labels,
-        ],
+        labelItems: collectSceneLabelItems(state),
         camera: state.camera,
         terrainGroup: state.terrainGroup,
         container,
@@ -304,6 +307,12 @@ export default function App() {
       selectPoiFeature: (feature) => {
         selectPoiOnMap(state, feature);
       },
+      selectTravelFeature: (feature) => {
+        selectTravelFeatureOnMap(state, feature);
+      },
+      syncTravelRoutes: (routeDays) => {
+        syncTravelRouteLayer(state, routeDays);
+      },
     };
 
     resizeScene(state);
@@ -326,6 +335,10 @@ export default function App() {
       sceneApiRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    sceneApiRef.current?.syncTravelRoutes(travelPlanner.planState.mapRouteDays);
+  }, [travelPlanner.planState.mapRouteDays]);
 
   const handleSubmitSearch = async (event) => {
     event.preventDefault();
@@ -356,6 +369,7 @@ export default function App() {
   };
 
   const panelNode = selectedNode || currentNode;
+  const currentTravelCandidate = panelNode?.level && panelNode.level !== "country" ? panelNode : null;
 
   return (
     <div className="app-shell">
@@ -381,6 +395,24 @@ export default function App() {
         handleCopyApi={handleCopyApi}
         reset={() => sceneApiRef.current?.reset()}
         goToTrail={(index) => sceneApiRef.current?.goToTrail(index)}
+      />
+
+      <TravelPlannerPanel
+        currentCandidate={currentTravelCandidate}
+        selectedNodes={travelPlanner.selectedNodes}
+        tripDays={travelPlanner.tripDays}
+        setTripDays={travelPlanner.setTripDays}
+        dayOrNightPreference={travelPlanner.dayOrNightPreference}
+        setDayOrNightPreference={travelPlanner.setDayOrNightPreference}
+        interestTags={travelPlanner.interestTags}
+        setInterestTags={travelPlanner.setInterestTags}
+        clarifyState={travelPlanner.clarifyState}
+        planState={travelPlanner.planState}
+        addCurrentSelection={() => travelPlanner.addCurrentSelection(currentTravelCandidate)}
+        removeSelection={travelPlanner.removeSelection}
+        clearSelection={travelPlanner.clearSelection}
+        handleClarify={travelPlanner.handleClarify}
+        handlePlan={travelPlanner.handlePlan}
       />
 
       {notice && <div className="toast">{notice}</div>}

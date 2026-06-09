@@ -1,0 +1,35 @@
+[
+  {
+    "id": "donghu",
+    "name": "东湖",
+    "node_type": "area",
+    "category": "lake",
+    "district": "武昌区",
+    "center": [114.419, 30.56],
+    "coordinate_status": "verified_seed",
+    "tags": ["湖景", "散步", "骑行"],
+    "visit_period": "day"
+  },
+  {
+    "id": "jianghan-road",
+    "name": "江汉路",
+    "node_type": "area",
+    "category": "street",
+    "district": "江汉区",
+    "center": [114.291, 30.581],
+    "coordinate_status": "verified_seed",
+    "tags": ["夜游", "商业街", "美食"],
+    "visit_period": "night"
+  },
+  {
+    "id": "yellow-crane-tower",
+    "name": "黄鹤楼",
+    "node_type": "poi",
+    "category": "landmark",
+    "district": "武昌区",
+    "center": [114.306, 30.547],
+    "coordinate_status": "verified_seed",
+    "tags": ["地标", "城市视野"],
+    "visit_period": "day"
+  }
+]

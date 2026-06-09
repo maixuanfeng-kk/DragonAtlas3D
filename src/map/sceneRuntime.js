@@ -22,6 +22,8 @@ export function createSceneState({ container, labelLayer, callbacks, cameraModeR
     lineGroup: null,
     markerGroup: null,
     majorRiverGroup: null,
+    travelRouteGroup: null,
+    travelNodeLayer: { group: null, labels: [], features: [] },
     labelItems: [],
     poiLayer: { group: null, marker: null, labels: [], feature: null },
     cityDetailLayer: createDetailLayerState(),
@@ -191,6 +193,21 @@ export function clearSceneLayers(state) {
     disposeObject3D(state.majorRiverGroup);
     state.majorRiverGroup = null;
   }
+
+  if (state.travelRouteGroup) {
+    state.terrainGroup.remove(state.travelRouteGroup);
+    disposeObject3D(state.travelRouteGroup);
+    state.travelRouteGroup = null;
+  }
+
+  if (state.travelNodeLayer.group) {
+    state.terrainGroup.remove(state.travelNodeLayer.group);
+    disposeObject3D(state.travelNodeLayer.group);
+    state.travelNodeLayer.group = null;
+  }
+  state.travelNodeLayer.labels.forEach((item) => item.element.remove());
+  state.travelNodeLayer.labels = [];
+  state.travelNodeLayer.features = [];
 
   state.labelItems = [];
   state.labelLayer.replaceChildren();
