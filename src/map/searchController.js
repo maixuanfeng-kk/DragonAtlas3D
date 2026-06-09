@@ -149,3 +149,19 @@ export function selectPoiOnMap(state, feature) {
     feature,
   });
 }
+
+export function selectTravelFeatureOnMap(state, feature) {
+  if (!feature || !state.context) {
+    return;
+  }
+
+  renderPoiSelection(state, feature);
+  const nodeType = feature.properties?.nodeType === "area" ? "area" : "poi";
+  state.callbacks.setSelectedNode({
+    name: feature.properties?.shortName || feature.properties?.name || "武汉旅游节点",
+    fullName: feature.properties?.fullName || feature.properties?.name || "武汉旅游节点",
+    adcode: String(feature.properties?.travelId || feature.properties?.adcode || ""),
+    level: nodeType,
+    feature,
+  });
+}

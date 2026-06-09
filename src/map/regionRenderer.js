@@ -9,6 +9,7 @@ import { buildRiverLabels, createRiverGroup, filterRiverFeatures } from "./river
 import { clearSceneLayers, resizeScene } from "./sceneRuntime.js";
 import { buildTerrainSurface } from "./terrain.js";
 import { COUNTRY_NODE, DEFAULT_VIEW_ZOOM, featureListForSearch } from "./viewState.js";
+import { renderTravelNodeLayer } from "./wuhanTravelNodes.js";
 
 export function updateSelectedHighlight(state, adcode) {
   if (!state.context || !state.lineGroup) {
@@ -185,6 +186,7 @@ export async function renderRegion(state, node, nextTrail) {
     prepareResidentialLayerForNode(state, node);
     updatePoiSearchState(state, node);
     state.callbacks.setSearch("");
+    renderTravelNodeLayer(state, nextTrail);
     state.scheduleResidentialRefresh?.();
   } catch (error) {
     state.callbacks.setNotice(error instanceof Error ? error.message : "地图数据加载失败");

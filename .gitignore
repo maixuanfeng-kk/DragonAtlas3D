@@ -4,3 +4,16 @@ dist
 .tmp
 .env.local
 *.log
+.edge-profile/
+/*.png
+/*.html
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/api/__pycache__/
+backend/app/models/__pycache__/
+backend/app/services/__pycache__/
+backend/app/services/llm/__pycache__/
+backend/tests/__pycache__/
+backend/*.db
+backend/*.sqlite
+backend/dragonatlas3d_backend.egg-info/
