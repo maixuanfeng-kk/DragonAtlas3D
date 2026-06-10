@@ -20,6 +20,7 @@ def test_clarify_request_rejects_empty_selected_nodes():
         "day_or_night_preference": "balanced",
         "interest_tags": ["sightseeing"],
     }
+
     with pytest.raises(ValidationError):
         TravelClarifyRequest.model_validate(payload)
 
@@ -28,7 +29,7 @@ def test_clarify_returns_follow_up_questions():
     payload = {
         "thread_id": "t-1",
         "current_city": "wuhan",
-        "selected_nodes": [{"id": "donghu", "name": "东湖", "node_type": "area", "center": [114.419, 30.560]}],
+        "selected_nodes": [{"id": "donghu", "name": "Donghu", "node_type": "area", "center": [114.419, 30.560]}],
         "trip_days": 3,
         "day_or_night_preference": "balanced",
         "interest_tags": ["sightseeing"],
@@ -45,7 +46,10 @@ def test_plan_returns_visit_order_polylines():
     payload = {
         "thread_id": "t-2",
         "current_city": "wuhan",
-        "selected_nodes": [{"id": "donghu", "name": "东湖", "node_type": "area", "center": [114.419, 30.560]}],
+        "selected_nodes": [
+            {"id": "donghu", "name": "Donghu", "node_type": "area", "center": [114.419, 30.560]},
+            {"id": "yellow-crane-tower", "name": "Yellow Crane Tower", "node_type": "poi", "center": [114.306, 30.547]},
+        ],
         "trip_days": 3,
         "day_or_night_preference": "balanced",
         "interest_tags": ["sightseeing"],
@@ -65,7 +69,7 @@ def test_plan_request_requires_at_least_two_selected_nodes():
     payload = {
         "thread_id": "t-plan-1",
         "current_city": "wuhan",
-        "selected_nodes": [{"id": "donghu", "name": "东湖", "node_type": "poi", "center": [114.41, 30.56]}],
+        "selected_nodes": [{"id": "donghu", "name": "Donghu", "node_type": "poi", "center": [114.41, 30.56]}],
         "trip_days": 3,
         "day_or_night_preference": "balanced",
         "interest_tags": ["sightseeing"],
