@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models.schemas import SourceStatus, TravelClarifyRequest
+from app.models.schemas import SourceStatus, TravelClarifyRequest, TravelPlanRequest
 
 
 def test_source_status_serializes_known_states():
@@ -59,6 +59,42 @@ def test_plan_returns_visit_order_polylines():
     body = response.json()
     assert body["map_route_days"][0]["route_type"] == "visit_order_polyline"
     assert body["uncertainty"]["level"] == "partial"
+
+
+def test_plan_request_requires_at_least_two_selected_nodes():
+    payload = {
+        "thread_id": "t-plan-1",
+        "current_city": "wuhan",
+        "selected_nodes": [{"id": "donghu", "name": "东湖", "node_type": "poi", "center": [114.41, 30.56]}],
+        "trip_days": 3,
+        "day_or_night_preference": "balanced",
+        "interest_tags": ["sightseeing"],
+        "answers": {},
+    }
+
+    with pytest.raises(ValidationError):
+        TravelPlanRequest.model_validate(payload)
+
+
+def test_plan_request_accepts_five_selected_nodes():
+    payload = {
+        "thread_id": "t-plan-2",
+        "current_city": "wuhan",
+        "selected_nodes": [
+            {"id": "a", "name": "A", "node_type": "poi", "center": [114.1, 30.1]},
+            {"id": "b", "name": "B", "node_type": "poi", "center": [114.2, 30.2]},
+            {"id": "c", "name": "C", "node_type": "poi", "center": [114.3, 30.3]},
+            {"id": "d", "name": "D", "node_type": "poi", "center": [114.4, 30.4]},
+            {"id": "e", "name": "E", "node_type": "poi", "center": [114.5, 30.5]},
+        ],
+        "trip_days": 3,
+        "day_or_night_preference": "balanced",
+        "interest_tags": ["sightseeing"],
+        "answers": {},
+    }
+
+    model = TravelPlanRequest.model_validate(payload)
+    assert len(model.selected_nodes) == 5
 
 
 def test_poi_extract_reports_failed_when_qwen_not_configured():
