@@ -17,3 +17,4 @@ backend/tests/__pycache__/
 backend/*.db
 backend/*.sqlite
 backend/dragonatlas3d_backend.egg-info/
+.worktrees/
