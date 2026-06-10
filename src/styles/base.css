@@ -1,0 +1,118 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --paper: #d6d8c3;
+  --paper-deep: #aeb69c;
+  --ink: #1b211b;
+  --muted: rgba(27, 33, 27, 0.64);
+  --panel: rgba(246, 244, 221, 0.58);
+  --panel-strong: rgba(246, 244, 221, 0.88);
+  --line: rgba(42, 52, 42, 0.16);
+  --green: #2e5a4d;
+  --green-dark: #213f36;
+  --gold: #b4883f;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, #dfe1ce 0%, var(--paper) 56%, var(--paper-deep) 100%);
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+  -webkit-tap-highlight-color: rgba(46, 90, 77, 0.18);
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 24%, transparent 78%, rgba(41, 55, 39, 0.08)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 30%, rgba(41, 55, 39, 0.1));
+}
+
+body::after {
+  opacity: 0.055;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(42, 52, 42, 0.06) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 8px);
+  mix-blend-mode: multiply;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:hover {
+  filter: saturate(108%);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.map-surface:focus-visible {
+  outline: 3px solid rgba(180, 136, 63, 0.72);
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-shell,
+.scene-stage,
+.map-surface {
+  width: 100%;
+  height: 100%;
+}
+
+.app-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.scene-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.scene-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(41, 55, 39, 0.12), transparent 18%, transparent 82%, rgba(41, 55, 39, 0.12)),
+    linear-gradient(180deg, rgba(255, 255, 235, 0.08), transparent 18%, transparent 78%, rgba(41, 55, 39, 0.14));
+}

@@ -1,13 +1,14 @@
 import * as THREE from "three";
-import { datavBoundaryUrl, loadAdminGeoJson, loadRiverGeoJson, loadTownshipGeoJson, townshipBoundaryUrl } from "./dataSources.js";
-import { renderDistrictScene } from "./districtScene.js";
+import { datavBoundaryUrl, loadAdminGeoJson, loadRiverGeoJson } from "./dataSources.js";
 import { CHINA_BOUNDS, featureBounds, mergeBounds, padBounds } from "./geo.js";
 import { buildLabels, createLabelElements, createLineGroup, createMarkerGroup } from "./overlays.js";
 import { searchRegionForNode } from "./poiLayer.js";
 import { prepareResidentialLayerForNode } from "./residentialLayer.js";
 import { buildRiverLabels, createRiverGroup, filterRiverFeatures } from "./rivers.js";
 import { clearSceneLayers, resizeScene } from "./sceneRuntime.js";
+import { scheduleSceneArrival } from "./sceneTransitions.js";
 import { buildTerrainSurface } from "./terrain.js";
+import { visibleGeoBounds } from "./viewBounds.js";
 import { COUNTRY_NODE, DEFAULT_VIEW_ZOOM, featureListForSearch } from "./viewState.js";
 import { renderTravelNodeLayer } from "./wuhanTravelNodes.js";
 
@@ -167,6 +168,15 @@ export async function renderRegion(state, node, nextTrail) {
     state.terrainGroup.position.copy(state.pan);
     resizeScene(state);
 
+    const transition = state.transitionPreset || (!state.hasArrivedOnce && level === "country"
+      ? { startZoom: 0.84, targetZoom: DEFAULT_VIEW_ZOOM, delay: 320 }
+      : null);
+    if (transition) {
+      scheduleSceneArrival(state, transition);
+    }
+    state.transitionPreset = null;
+    state.hasArrivedOnce = true;
+
     state.callbacks.setCurrentNode(node);
     state.callbacks.setSelectedNode(node);
     state.callbacks.setTrail(nextTrail);
@@ -188,6 +198,10 @@ export async function renderRegion(state, node, nextTrail) {
     state.callbacks.setSearch("");
     renderTravelNodeLayer(state, nextTrail);
     state.scheduleResidentialRefresh?.();
+    state.callbacks.onViewportChange?.({
+      currentNode: node,
+      bounds: visibleGeoBounds(state),
+    });
   } catch (error) {
     state.callbacks.setNotice(error instanceof Error ? error.message : "地图数据加载失败");
   } finally {
@@ -197,53 +211,6 @@ export async function renderRegion(state, node, nextTrail) {
 }
 
 export async function drillIntoFeature(state, feature) {
-  if (feature.properties?.level === "district") {
-    const provinceNode = state.trailRef.current.find((item) => item.level === "province");
-    const cityNode = state.trailRef.current.find((item) => item.level === "city");
-    const provinceName = provinceNode?.fullName || provinceNode?.name || "";
-    const cityName = cityNode?.fullName || cityNode?.name || "";
-    const districtName = feature.properties?.name || "";
-    const districtNode = {
-      name: districtName,
-      fullName: districtName,
-      adcode: String(feature.properties?.adcode || ""),
-      level: "district",
-      feature: {
-        ...feature,
-        properties: {
-          ...(feature.properties || {}),
-          provinceName,
-          cityName,
-        },
-      },
-    };
-    const baseTrail = state.context?.node?.level === "country" ? [COUNTRY_NODE] : state.trailRef.current;
-    const nextTrail = [...baseTrail.filter((node) => node.level !== "district" && node.level !== "township"), districtNode];
-
-    if (!provinceName || !cityName || !districtName) {
-      state.callbacks.setNotice("缺少省市区路径，无法进入街道场景");
-      return;
-    }
-
-    try {
-      const geojson = await loadTownshipGeoJson({
-        provinceName,
-        cityName,
-        districtName,
-        maxFiles: 120,
-      });
-      await renderDistrictScene(state, {
-        node: districtNode,
-        features: geojson.features || [],
-        sourceUrl: townshipBoundaryUrl({ provinceName, cityName, districtName }),
-        nextTrail,
-      });
-    } catch (error) {
-      state.callbacks.setNotice(error instanceof Error ? error.message : "街道场景加载失败");
-    }
-    return;
-  }
-
   const nextNode = {
     name: feature.properties?.name || "",
     fullName: feature.properties?.name || "",

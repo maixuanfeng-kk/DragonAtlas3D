@@ -5,6 +5,7 @@ import { searchRegionForNode } from "./poiLayer.js";
 import { prepareResidentialLayerForNode } from "./residentialLayer.js";
 import { clearSceneLayers, resizeScene } from "./sceneRuntime.js";
 import { buildTerrainSurface } from "./terrain.js";
+import { visibleGeoBounds } from "./viewBounds.js";
 import { DEFAULT_VIEW_ZOOM, featureListForSearch } from "./viewState.js";
 import { renderTravelNodeLayer } from "./wuhanTravelNodes.js";
 
@@ -139,6 +140,10 @@ export async function renderDistrictScene(state, { node, features, sourceUrl, ne
     state.callbacks.setSearch("");
     renderTravelNodeLayer(state, nextTrail);
     state.scheduleResidentialRefresh?.();
+    state.callbacks.onViewportChange?.({
+      currentNode: node,
+      bounds: visibleGeoBounds(state),
+    });
   } catch (error) {
     state.callbacks.setNotice(error instanceof Error ? error.message : "区级街道场景加载失败");
   } finally {

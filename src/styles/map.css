@@ -1,0 +1,109 @@
+.map-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-surface:active {
+  cursor: grabbing;
+}
+
+.map-surface canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.map-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 92px;
+  color: rgba(26, 38, 29, 0.92);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0.94;
+  text-shadow:
+    0 0 8px rgba(255, 248, 218, 0.96),
+    0 1px 2px rgba(255, 248, 218, 0.78),
+    0 -1px 2px rgba(255, 248, 218, 0.78);
+  transition: opacity 160ms ease;
+  will-change: transform, left, top;
+}
+
+.map-label.is-hidden {
+  opacity: 0;
+}
+
+.city-label {
+  font-size: 12px;
+}
+
+.district-label {
+  font-size: 11px;
+  color: rgba(26, 38, 29, 0.82);
+}
+
+.township-label {
+  max-width: 80px;
+  color: rgba(26, 38, 29, 0.58);
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.74;
+  text-shadow:
+    0 0 6px rgba(255, 248, 218, 0.88),
+    0 1px 1px rgba(255, 248, 218, 0.7);
+}
+
+.river-label {
+  max-width: 90px;
+  color: rgba(31, 103, 117, 0.58);
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.62;
+  text-shadow:
+    0 0 6px rgba(255, 248, 218, 0.72),
+    0 1px 1px rgba(255, 248, 218, 0.54);
+}
+
+.reef-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.reef-label::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border: 1px solid rgba(36, 63, 53, 0.72);
+  border-radius: 50%;
+  background: #fff0b0;
+  box-shadow: 0 0 0 2px rgba(255, 248, 218, 0.62);
+}
+
+.nansha-label {
+  max-width: 88px;
+  padding: 4px 7px;
+  border: 1px solid rgba(36, 63, 53, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 248, 218, 0.74);
+  color: #24473d;
+  font-size: 12px;
+  box-shadow: 0 5px 14px rgba(66, 47, 26, 0.12);
+}

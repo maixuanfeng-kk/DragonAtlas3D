@@ -1,16 +1,18 @@
-import { AMAP_PLACE_SEARCH_SOURCE, AMAP_RESIDENTIAL_LAYER_SOURCE, shortName } from "./viewState.js";
+import { AMAP_PLACE_SEARCH_SOURCE, AMAP_VIEWPORT_POI_SOURCE, shortName } from "./viewState.js";
+import {
+  VIEWPORT_POI_CATEGORIES,
+  buildBusinessAreaFeatures,
+  filterTransportHubFeatures,
+  summarizeViewportPoiCategories,
+  takeRepresentativeFeatures,
+} from "./viewportPois.js";
 
 const AMAP_WEB_KEY = import.meta.env.VITE_AMAP_WEB_KEY || "";
 const AMAP_PLACE_TEXT_URL = AMAP_PLACE_SEARCH_SOURCE.serviceUrl;
-const AMAP_PLACE_POLYGON_URL = AMAP_RESIDENTIAL_LAYER_SOURCE.serviceUrl;
-const RESIDENTIAL_TYPE_CODES = ["120300", "120302"];
-const VIEWPORT_RESIDENTIAL_TYPE_CODES = ["120300", "120302", "120303"];
-const RESIDENTIAL_TAGS = /(住宅|小区|宿舍|社区)/;
-const RESIDENTIAL_NAME_TAGS = /(小区|花园|家园|宿舍|新村|公寓|名苑|华庭|家属楼|里|苑|居|城|湾|府|阁|堡)$/;
-const NON_RESIDENTIAL_NAME_TAGS = /(服务站|体验店|餐厅|饭店|酒店|面馆|营业厅|超市|医院|学校|公司|广场|大厦|商场|政府|派出所|银行)$/;
+const AMAP_PLACE_POLYGON_URL = AMAP_VIEWPORT_POI_SOURCE.serviceUrl;
 
-export function hasAmapWebKey() {
-  return Boolean(AMAP_WEB_KEY);
+function ratingFromPlace(place) {
+  return String(place?.business?.rating || place?.biz_ext?.rating || place?.rating || "").trim();
 }
 
 function normalizeRegion(region = {}) {
@@ -21,6 +23,10 @@ function normalizeRegion(region = {}) {
     adcode,
     label: label || "全国",
   };
+}
+
+export function hasAmapWebKey() {
+  return Boolean(AMAP_WEB_KEY);
 }
 
 export function placePolygonToGeometry(polyline = "") {
@@ -48,7 +54,17 @@ export function placePolygonToGeometry(polyline = "") {
   };
 }
 
-function poiFeatureFromPlace(place, index, { query = "", sourceUrl = AMAP_PLACE_TEXT_URL, sourceMode = "search" } = {}) {
+function poiFeatureFromPlace(
+  place,
+  index,
+  {
+    query = "",
+    sourceUrl = AMAP_PLACE_TEXT_URL,
+    sourceMode = "search",
+    categoryId = "",
+    categoryLabel = "",
+  } = {},
+) {
   const [lon, lat] = String(place.location || "")
     .split(",")
     .map(Number);
@@ -74,9 +90,12 @@ function poiFeatureFromPlace(place, index, { query = "", sourceUrl = AMAP_PLACE_
       geometryStatus: geometry ? "ready" : "point-only",
       category: place.type || "",
       typecode: place.typecode || "",
-      provider: AMAP_PLACE_SEARCH_SOURCE.label,
+      rating: ratingFromPlace(place),
+      provider: sourceMode === "viewport" ? AMAP_VIEWPORT_POI_SOURCE.label : AMAP_PLACE_SEARCH_SOURCE.label,
       query,
       sourceMode,
+      categoryId,
+      categoryLabel,
     },
     geometry,
   };
@@ -94,79 +113,151 @@ function normalizePoiResult(data, query, regionLabel) {
   };
 }
 
+async function fetchAmapPlaceList(params, errorPrefix) {
+  const url = new URL(params.sourceUrl || AMAP_PLACE_POLYGON_URL);
+  Object.entries(params.query || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && `${value}` !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`${errorPrefix}: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (String(data.status) !== "1") {
+    throw new Error(`${errorPrefix}: ${data.info || data.infocode || "未知错误"}`);
+  }
+
+  return data;
+}
+
 export function polygonQueryParam(bounds) {
   return `${bounds.minLon.toFixed(4)},${bounds.maxLat.toFixed(4)}|${bounds.maxLon.toFixed(4)},${bounds.minLat.toFixed(4)}`;
 }
 
-function isResidentialCandidate(place) {
-  const typecode = String(place?.typecode || "").trim();
-  if (!VIEWPORT_RESIDENTIAL_TYPE_CODES.includes(typecode)) {
-    return false;
-  }
-
-  const businessTags = `${place?.business?.rectag || ""} ${place?.business?.keytag || ""}`.trim();
-  if (RESIDENTIAL_TAGS.test(businessTags)) {
-    return true;
-  }
-
-  const name = String(place?.name || "").trim();
-  if (NON_RESIDENTIAL_NAME_TAGS.test(name)) {
-    return false;
-  }
-
-  return RESIDENTIAL_NAME_TAGS.test(name);
+function categorySummary(features) {
+  return features.reduce((summary, feature) => {
+    const key = feature.properties?.categoryId || "unknown";
+    return {
+      ...summary,
+      [key]: (summary[key] || 0) + 1,
+    };
+  }, {});
 }
 
-export async function searchResidentialViewport(bounds, pageSize = 25, maxFeatures = 40) {
-  if (!hasAmapWebKey()) {
-    throw new Error("缺少 VITE_AMAP_WEB_KEY，无法自动加载视野内小区层。");
-  }
+async function searchViewportCategory(bounds, category) {
+  const data = await fetchAmapPlaceList(
+    {
+      sourceUrl: AMAP_PLACE_POLYGON_URL,
+      query: {
+        key: AMAP_WEB_KEY,
+        polygon: polygonQueryParam(bounds),
+        types: category.amapTypes,
+        show_fields: "business",
+        page_size: category.pageSize,
+        page_num: 1,
+      },
+    },
+    `高德${category.label}视口查询失败`,
+  );
 
-  const fetchPage = async (pageNum) => {
-    const url = new URL(AMAP_PLACE_POLYGON_URL);
-    url.searchParams.set("key", AMAP_WEB_KEY);
-    url.searchParams.set("polygon", polygonQueryParam(bounds));
-    url.searchParams.set("types", VIEWPORT_RESIDENTIAL_TYPE_CODES.join("|"));
-    url.searchParams.set("show_fields", "business");
-    url.searchParams.set("page_size", String(pageSize));
-    url.searchParams.set("page_num", String(pageNum));
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`高德视野内小区层加载失败: HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (String(data.status) !== "1") {
-      throw new Error(`高德视野内小区层加载失败: ${data.info || data.infocode || "未知错误"}`);
-    }
-    return data;
-  };
-
-  const firstPage = await fetchPage(1);
-  const totalCount = Number(firstPage.count || 0);
-  const secondPage = totalCount > pageSize ? await fetchPage(2) : null;
-  const places = [...(firstPage.pois || []), ...(secondPage?.pois || [])];
-  const features = places
-    .filter(isResidentialCandidate)
+  const rawPois = Array.isArray(data?.pois) ? data.pois : [];
+  const rawFeatures = rawPois
     .map((place, index) =>
       poiFeatureFromPlace(place, index, {
         sourceUrl: AMAP_PLACE_POLYGON_URL,
         sourceMode: "viewport",
+        categoryId: category.id,
+        categoryLabel: category.label,
       }),
     )
-    .filter(Boolean)
-    .slice(0, maxFeatures);
+    .filter(Boolean);
+
+  const pickedFeatures =
+    category.id === "station"
+      ? filterTransportHubFeatures(rawFeatures).slice(0, category.limit)
+      : category.id === "business"
+        ? buildBusinessAreaFeatures(rawFeatures, category.limit)
+        : takeRepresentativeFeatures(rawFeatures, category.limit);
 
   return {
-    totalCount,
-    pageCount: places.length,
-    features,
-    viewport: polygonQueryParam(bounds),
+    category,
+    totalCount: Number(data?.count || 0),
+    rawCount: rawFeatures.length,
+    features: pickedFeatures,
+    pageLimitReached: Number(data?.count || 0) > rawFeatures.length,
+    pointOnly: pickedFeatures.length > 0 && pickedFeatures.every((feature) => feature.properties?.geometryStatus !== "ready"),
+    businessAreaCoverage:
+      category.id === "business" && rawFeatures.length > 0
+        ? pickedFeatures.length / Math.max(1, Math.min(rawFeatures.length, category.limit))
+        : 1,
   };
 }
 
-export function amapSearchStateUpdate({ status = "pending", requested = 0, loaded = 0, failed = 0, resultCount = 0, query = "", regionLabel = "全国", error = "" }) {
+export async function searchViewportPois(bounds) {
+  if (!hasAmapWebKey()) {
+    throw new Error("缺少 VITE_AMAP_WEB_KEY，无法加载高德精细地点层。");
+  }
+
+  const settled = await Promise.allSettled(VIEWPORT_POI_CATEGORIES.map((category) => searchViewportCategory(bounds, category)));
+  const successfulResults = settled
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
+  const failedResults = settled
+    .filter((result) => result.status === "rejected")
+    .map((result) => (result.reason instanceof Error ? result.reason.message : "高德精细地点层加载失败"));
+
+  const features = successfulResults.flatMap((result) => result.features);
+  const counts = categorySummary(features);
+  const pageLimitedCategories = successfulResults.filter((result) => result.pageLimitReached).map((result) => result.category.label);
+  const pointOnlyCategories = successfulResults.filter((result) => result.pointOnly).map((result) => result.category.label);
+  const missingBusinessArea =
+    successfulResults.some((result) => result.category.id === "business" && result.rawCount > 0 && result.features.length === 0);
+
+  let status = "ready";
+  const notes = [];
+  if (failedResults.length) {
+    status = successfulResults.length ? "partial" : "failed";
+    notes.push(failedResults.join("；"));
+  }
+  if (pageLimitedCategories.length) {
+    status = "partial";
+    notes.push(`当前视口结果过多，已按代表点截取：${pageLimitedCategories.join("、")}`);
+  }
+  if (pointOnlyCategories.length) {
+    status = "partial";
+    notes.push(`高德未为这些类别返回 AOI 面：${pointOnlyCategories.join("、")}`);
+  }
+  if (missingBusinessArea) {
+    status = "partial";
+    notes.push("部分购物类 POI 未返回 business_area，因此未被纳入商圈聚合");
+  }
+
+  return {
+    status,
+    features,
+    counts,
+    viewport: polygonQueryParam(bounds),
+    note:
+      notes.join("；") ||
+      `高德视口精细地点层已就绪：${summarizeViewportPoiCategories(counts)}。商圈基于高德返回的 business_area 聚合。`,
+    error: failedResults.join("；"),
+  };
+}
+
+export function amapSearchStateUpdate({
+  status = "pending",
+  requested = 0,
+  loaded = 0,
+  failed = 0,
+  resultCount = 0,
+  query = "",
+  regionLabel = "全国",
+  error = "",
+}) {
   return {
     ...AMAP_PLACE_SEARCH_SOURCE,
     status,
@@ -178,11 +269,11 @@ export function amapSearchStateUpdate({ status = "pending", requested = 0, loade
     regionLabel,
     error,
     note:
-      "高德 Web 服务搜索使用 key；优先按当前行政区 adcode 限定范围，默认返回小区 POI 点位；只有高德返回面边界时才显示真实面。",
+      "当前搜索仍使用高德 Web 服务 key；地图缩放后的精细地点由独立的高德视口精细地点层负责，不做静默切换。",
   };
 }
 
-export async function searchResidentialPoi(query, region = {}) {
+export async function searchAmapPlace(query, region = {}) {
   if (!hasAmapWebKey()) {
     throw new Error("缺少 VITE_AMAP_WEB_KEY，无法调用高德 Web 服务搜索。");
   }
@@ -193,26 +284,20 @@ export async function searchResidentialPoi(query, region = {}) {
   }
 
   const normalizedRegion = normalizeRegion(region);
-  const url = new URL(AMAP_PLACE_TEXT_URL);
-  url.searchParams.set("key", AMAP_WEB_KEY);
-  url.searchParams.set("keywords", trimmedQuery);
-  url.searchParams.set("types", RESIDENTIAL_TYPE_CODES.join("|"));
-  url.searchParams.set("city_limit", "true");
-  url.searchParams.set("show_fields", "business");
-  url.searchParams.set("page_size", "8");
-  if (normalizedRegion.adcode) {
-    url.searchParams.set("region", normalizedRegion.adcode);
-  }
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`高德 POI 搜索失败: HTTP ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (String(data.status) !== "1") {
-    throw new Error(`高德 POI 搜索失败: ${data.info || data.infocode || "未知错误"}`);
-  }
+  const data = await fetchAmapPlaceList(
+    {
+      sourceUrl: AMAP_PLACE_TEXT_URL,
+      query: {
+        key: AMAP_WEB_KEY,
+        keywords: trimmedQuery,
+        city_limit: true,
+        show_fields: "business",
+        page_size: 8,
+        region: normalizedRegion.adcode || undefined,
+      },
+    },
+    "高德 POI 搜索失败",
+  );
 
   return normalizePoiResult(data, trimmedQuery, normalizedRegion.label);
 }

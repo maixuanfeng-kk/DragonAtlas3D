@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { CHINA_BOUNDS, computeWorldSize } from "./geo.js";
 import { disposeObject3D, fitRenderer } from "./overlays.js";
+import { clearSceneArrival } from "./sceneTransitions.js";
 import { FIT_MARGIN, TERRAIN_BASE_Y, TOP_CAMERA, TILT_CAMERA, DEFAULT_VIEW_ZOOM } from "./viewState.js";
 
 function createDetailLayerState() {
@@ -32,6 +33,9 @@ export function createSceneState({ container, labelLayer, callbacks, cameraModeR
     residentialLayer: createDetailLayerState(),
     tributaryRiverLayer: createDetailLayerState(),
     residentialTimer: 0,
+    arrivalTimer: 0,
+    hasArrivedOnce: false,
+    transitionPreset: null,
     viewZoom: DEFAULT_VIEW_ZOOM,
     targetZoom: DEFAULT_VIEW_ZOOM,
     pan: new THREE.Vector3(0, TERRAIN_BASE_Y, 0),
@@ -58,8 +62,8 @@ export function createSceneState({ container, labelLayer, callbacks, cameraModeR
 
 export function setupSceneRuntime(state) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#d6d8c3");
-  scene.fog = new THREE.Fog("#d6d8c3", 28, 58);
+  scene.background = new THREE.Color("#06111d");
+  scene.fog = new THREE.Fog("#0b1622", 34, 76);
 
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 90);
   camera.up.set(0, 0, -1);
@@ -80,15 +84,15 @@ export function setupSceneRuntime(state) {
 
   const basePlane = new THREE.Mesh(
     new THREE.PlaneGeometry(90, 54),
-    new THREE.MeshBasicMaterial({ color: "#d6d8c3" }),
+    new THREE.MeshBasicMaterial({ color: "#07121d" }),
   );
   basePlane.rotation.x = -Math.PI / 2;
   basePlane.position.y = TERRAIN_BASE_Y - 0.08;
   scene.add(basePlane);
 
-  scene.add(new THREE.HemisphereLight("#fff4cf", "#30443d", 0.9));
-  const keyLight = new THREE.DirectionalLight("#fff0c4", 0.85);
-  keyLight.position.set(-9, 15, 10);
+  scene.add(new THREE.HemisphereLight("#d6e8ff", "#102235", 1.04));
+  const keyLight = new THREE.DirectionalLight("#f7e6b6", 1.1);
+  keyLight.position.set(-11, 18, 11);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.width = 2048;
   keyLight.shadow.mapSize.height = 2048;
@@ -98,8 +102,8 @@ export function setupSceneRuntime(state) {
   keyLight.shadow.camera.bottom = -18;
   scene.add(keyLight);
 
-  const rimLight = new THREE.DirectionalLight("#b7d4c6", 0.35);
-  rimLight.position.set(8, 9, -9);
+  const rimLight = new THREE.DirectionalLight("#85b8ff", 0.52);
+  rimLight.position.set(10, 10, -10);
   scene.add(rimLight);
 
   state.scene = scene;
@@ -167,6 +171,8 @@ export function clearSceneLayers(state) {
     window.clearTimeout(state.residentialTimer);
     state.residentialTimer = 0;
   }
+
+  clearSceneArrival(state);
 
   if (state.terrainMesh) {
     state.terrainGroup.remove(state.terrainMesh);

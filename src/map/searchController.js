@@ -1,5 +1,5 @@
 import { datavBoundaryUrl } from "./dataSources.js";
-import { searchResidentialPoi, amapSearchStateUpdate } from "./amapSearch.js";
+import { searchAmapPlace, amapSearchStateUpdate } from "./amapSearch.js";
 import { renderPoiSelection, searchRegionForNode } from "./poiLayer.js";
 import { drillIntoFeature, updateSelectedHighlight } from "./regionRenderer.js";
 import { COUNTRY_NODE, normalizeFeature } from "./viewState.js";
@@ -57,12 +57,12 @@ export async function submitSearch({ query, currentFeatures, currentNode, sceneA
   );
 
   try {
-    const result = await searchResidentialPoi(query, region);
+    const result = await searchAmapPlace(query, region);
     if (!result.features.length) {
       const regionHint =
         !region.adcode || region.label === "全国"
-          ? "当前在全国视图，建议先进入城市或区县后再搜小区。"
-          : "可能是当前行政区限制过严或该小区名称未被收录。";
+          ? "当前在全国视图，建议先进入城市或区县后再搜具体地点。"
+          : "可能是当前行政区限制过严或该地点名称未被收录。";
       setPoiSearchState((current) =>
         amapSearchStateUpdate({
           ...current,
@@ -73,10 +73,10 @@ export async function submitSearch({ query, currentFeatures, currentNode, sceneA
           resultCount: 0,
           query,
           regionLabel: result.regionLabel,
-          error: `高德未返回小区结果。${regionHint}`,
+          error: `高德未返回地点结果。${regionHint}`,
         }),
       );
-      setNotice(`高德未在${result.regionLabel}返回“${query}”的小区结果。${regionHint}`);
+      setNotice(`高德未在${result.regionLabel}返回“${query}”的地点结果。${regionHint}`);
       return;
     }
 
@@ -99,13 +99,13 @@ export async function submitSearch({ query, currentFeatures, currentNode, sceneA
         resultCount: result.features.length,
         query,
         regionLabel: result.regionLabel,
-        error: feature.properties.geometryStatus === "ready" ? "" : "高德当前结果只返回 POI 点位，未返回小区真实边界面。",
+        error: feature.properties.geometryStatus === "ready" ? "" : "高德当前结果只返回 POI 点位，未返回真实 AOI 边界面。",
       }),
     );
     setNotice(
       feature.properties.geometryStatus === "ready"
-        ? `高德已定位小区“${feature.properties.fullName}”`
-        : `高德已定位小区“${feature.properties.fullName}”，当前仅提供点位`,
+        ? `高德已定位地点“${feature.properties.fullName}”`
+        : `高德已定位地点“${feature.properties.fullName}”，当前仅提供点位`,
     );
   } catch (error) {
     setPoiSearchState((current) =>

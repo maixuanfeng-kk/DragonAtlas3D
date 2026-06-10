@@ -1,4 +1,4 @@
-import { loadAdminGeoJson, loadRiverGeoJson, loadTownshipGeoJson } from "./dataSources.js";
+import { loadAdminGeoJson, loadRiverGeoJson } from "./dataSources.js";
 import { findFeatureAt } from "./geo.js";
 import { buildRiverLabels, createRiverGroup, filterRiverFeatures } from "./rivers.js";
 import { buildLabels, createLabelElements, createLineGroup } from "./overlays.js";
@@ -58,66 +58,12 @@ export async function renderDetailLayer(state, { layer, feature, variant, labelL
 }
 
 export async function renderTownshipLayer(state, { provinceFeature, cityFeature, districtFeature, provinceName = "", cityName = "" }) {
-  if (!state.context || !districtFeature?.properties?.name) {
-    clearDetailLayer(state, state.townshipDetailLayer);
-    return;
-  }
-
-  const nextProvinceName = provinceName || provinceFeature?.properties?.name || "";
-  const nextCityName = cityName || cityFeature?.properties?.name || "";
-  const districtName = districtFeature.properties.name;
-  if (!nextProvinceName || !nextCityName || !districtName) {
-    clearDetailLayer(state, state.townshipDetailLayer);
-    return;
-  }
-
-  const key = `township:${nextProvinceName}/${nextCityName}/${districtName}`;
-  if (state.townshipDetailLayer.key === key || state.townshipDetailLayer.loadingKey === key) {
-    return;
-  }
-
-  const requestContext = state.context;
-  state.townshipDetailLayer.loadingKey = key;
-
-  try {
-    const geojson = await loadTownshipGeoJson({
-      provinceName: nextProvinceName,
-      cityName: nextCityName,
-      districtName,
-      maxFiles: 120,
-    });
-    if (state.disposed || state.context !== requestContext || state.townshipDetailLayer.loadingKey !== key) {
-      return;
-    }
-
-    const features = (geojson.features || []).filter((item) => item.properties?.name && item.geometry);
-    clearDetailLayer(state, state.townshipDetailLayer);
-    state.townshipDetailLayer.key = key;
-    state.townshipDetailLayer.features = features;
-    if (!features.length) {
-      return;
-    }
-
-    state.townshipDetailLayer.group = createLineGroup({
-      features,
-      bounds: requestContext.bounds,
-      size: requestContext.size,
-      sampleHeight: requestContext.terrain.sampleHeight,
-      selectedAdcode: null,
-      variant: "townshipDetail",
-    });
-    state.terrainGroup.add(state.townshipDetailLayer.group);
-    state.townshipDetailLayer.labels = createLabelElements({
-      labels: buildLabels({ features, bounds: requestContext.bounds, level: "township" }),
-      labelLayer: state.labelLayer,
-      replace: false,
-    });
-  } catch (error) {
-    if (state.townshipDetailLayer.loadingKey === key) {
-      state.townshipDetailLayer.loadingKey = "";
-    }
-    reportLayerError(state, error, "乡镇街道边界加载失败");
-  }
+  void provinceFeature;
+  void cityFeature;
+  void districtFeature;
+  void provinceName;
+  void cityName;
+  clearDetailLayer(state, state.townshipDetailLayer);
 }
 
 export async function renderTributaryRivers(state, { provinceAdcode = "", maxFeatures = 90, maxLabels = 16 } = {}) {
@@ -177,11 +123,6 @@ export async function renderTributaryRivers(state, { provinceAdcode = "", maxFea
     }
     reportLayerError(state, error, "支流数据加载失败");
   }
-}
-
-function provinceNameFromTrail(state) {
-  const provinceNode = state.trailRef.current.find((item) => item.level === "province");
-  return provinceNode?.fullName || provinceNode?.name || "";
 }
 
 export async function updateDetailLayers(state, lonLat = state.lodFocusLonLat) {
@@ -244,16 +185,7 @@ export async function updateDetailLayers(state, lonLat = state.lodFocusLonLat) {
       labelLevel: "city",
     });
 
-    if (state.targetZoom >= LOD_ZOOM.countryTownships) {
-      const districtFeature = findFeatureNear(lonLat[0], lonLat[1], state.districtDetailLayer.features, 0.8);
-      if (districtFeature) {
-        await renderTownshipLayer(state, { provinceFeature, cityFeature, districtFeature });
-      } else {
-        clearDetailLayer(state, state.townshipDetailLayer);
-      }
-    } else {
-      clearDetailLayer(state, state.townshipDetailLayer);
-    }
+    clearDetailLayer(state, state.townshipDetailLayer);
     return;
   }
 
@@ -289,42 +221,13 @@ export async function updateDetailLayers(state, lonLat = state.lodFocusLonLat) {
       labelLevel: "city",
     });
 
-    if (state.targetZoom >= LOD_ZOOM.provinceTownships) {
-      const districtFeature = findFeatureNear(lonLat[0], lonLat[1], state.districtDetailLayer.features, 0.8);
-      if (districtFeature) {
-        await renderTownshipLayer(state, {
-          provinceName: state.context.node.fullName || state.context.node.name,
-          cityFeature,
-          districtFeature,
-        });
-      } else {
-        clearDetailLayer(state, state.townshipDetailLayer);
-      }
-    } else {
-      clearDetailLayer(state, state.townshipDetailLayer);
-    }
+    clearDetailLayer(state, state.townshipDetailLayer);
     return;
   }
 
   clearDetailLayer(state, state.districtDetailLayer);
   if (state.context.level === "city") {
-    if (state.targetZoom < LOD_ZOOM.cityTownships) {
-      clearDetailLayer(state, state.townshipDetailLayer);
-      return;
-    }
-
-    const provinceName = provinceNameFromTrail(state);
-    const districtFeature = findFeatureNear(lonLat[0], lonLat[1], state.context.namedFeatures, 0.8);
-    if (!provinceName || !districtFeature) {
-      clearDetailLayer(state, state.townshipDetailLayer);
-      return;
-    }
-
-    await renderTownshipLayer(state, {
-      provinceName,
-      cityName: state.context.node.fullName || state.context.node.name,
-      districtFeature,
-    });
+    clearDetailLayer(state, state.townshipDetailLayer);
     return;
   }
 

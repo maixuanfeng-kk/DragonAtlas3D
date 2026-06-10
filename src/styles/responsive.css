@@ -1,0 +1,136 @@
+@media (max-width: 960px) {
+  .hero-overlay {
+    inset: max(12px, env(safe-area-inset-top)) auto auto max(12px, env(safe-area-inset-left));
+    width: min(560px, calc(100vw - 24px));
+  }
+
+  .hero-shell {
+    padding: 20px 20px 16px;
+  }
+
+  .hero-controls,
+  .info-dock,
+  .location-reveal-card {
+    width: min(360px, calc(100vw - 24px));
+  }
+
+  .hero-controls {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .info-dock {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 16px;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero-overlay {
+    width: calc(100vw - 20px);
+    inset: max(10px, env(safe-area-inset-top)) 10px auto;
+  }
+
+  .hero-shell,
+  .hero-overlay.is-condensed .hero-shell {
+    width: 100%;
+    padding: 16px 16px 14px;
+  }
+
+  .hero-shell h1,
+  .hero-overlay.is-condensed .hero-shell h1 {
+    margin-top: 10px;
+    font-size: clamp(1.8rem, 10vw, 2.8rem);
+  }
+
+  .hero-subline {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  .hero-search {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-search input,
+  .hero-search button,
+  .mode-dock button,
+  .trail-dock button,
+  .ghost-button {
+    min-height: 44px;
+  }
+
+  .hero-status-row {
+    gap: 6px;
+  }
+
+  .hero-status-row span,
+  .selected-meta span,
+  .reveal-meta span {
+    min-height: 26px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .hero-controls,
+  .info-dock,
+  .location-reveal-card {
+    width: calc(100vw - 20px);
+    left: 10px;
+    right: 10px;
+  }
+
+  .hero-controls {
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .info-dock {
+    bottom: auto;
+    top: auto;
+    padding: 14px;
+  }
+
+  .location-reveal-card {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 160px);
+  }
+
+  .info-dock h2,
+  .location-reveal-card h2 {
+    font-size: 22px;
+  }
+
+  .compact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toast {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 310px);
+    width: calc(100vw - 20px);
+  }
+
+  .map-label {
+    font-size: 11px;
+  }
+
+  .district-label {
+    font-size: 10px;
+  }
+
+  .township-label,
+  .river-label {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+  }
+
+  .map-label {
+    transition: none;
+  }
+}

@@ -1,69 +1,18 @@
 import * as THREE from "three";
-import { hasAmapWebKey, polygonQueryParam, searchResidentialViewport } from "./amapSearch.js";
+import { hasAmapWebKey, polygonQueryParam, searchViewportPois } from "./amapSearch.js";
+import { featureCenter, pointInFeature, projectLonLat } from "./geo.js";
 import { buildLabels, createLabelElements, createLineGroup } from "./overlays.js";
 import { clearDetailLayer } from "./sceneRuntime.js";
-import { featureCenter, pointInFeature, projectLonLat, unprojectMapPoint } from "./geo.js";
+import { shouldRenderViewportPoiLayer, viewportPoiSuppressedNote } from "./viewportPoiPolicy.js";
+import { visibleGeoBounds } from "./viewBounds.js";
 
-function visibleGeoBounds(state) {
-  if (!state.context || !state.container) {
-    return null;
-  }
-
-  const rect = state.container.getBoundingClientRect();
-  const inset = 18;
-  const corners = [
-    [rect.left + inset, rect.top + inset],
-    [rect.right - inset, rect.top + inset],
-    [rect.right - inset, rect.bottom - inset],
-    [rect.left + inset, rect.bottom - inset],
-  ]
-    .map(([clientX, clientY]) => clientPointToLonLat(state, clientX, clientY))
-    .filter(Boolean);
-
-  if (corners.length < 4) {
-    return null;
-  }
-
-  const lons = corners.map((item) => item[0]);
-  const lats = corners.map((item) => item[1]);
-  return {
-    minLon: Math.max(state.context.bounds.minLon, Math.min(...lons)),
-    maxLon: Math.min(state.context.bounds.maxLon, Math.max(...lons)),
-    minLat: Math.max(state.context.bounds.minLat, Math.min(...lats)),
-    maxLat: Math.min(state.context.bounds.maxLat, Math.max(...lats)),
-  };
-}
-
-function clientPointToMapLocal(state, clientX, clientY) {
-  if (!state.context) {
-    return null;
-  }
-
-  const rect = state.container.getBoundingClientRect();
-  state.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-  state.pointer.y = -(((clientY - rect.top) / rect.height) * 2 - 1);
-  state.raycaster.setFromCamera(state.pointer, state.camera);
-  const terrainHit = state.terrainMesh ? state.raycaster.intersectObject(state.terrainMesh, false)[0] : null;
-  let point = terrainHit?.point;
-  if (!point) {
-    point = new THREE.Vector3();
-    state.raycaster.ray.intersectPlane(state.groundPlane, point);
-  }
-  if (!point) {
-    return null;
-  }
-
-  return state.terrainGroup.worldToLocal(point.clone());
-}
-
-function clientPointToLonLat(state, clientX, clientY) {
-  const local = clientPointToMapLocal(state, clientX, clientY);
-  if (!local || !state.context) {
-    return null;
-  }
-
-  return unprojectMapPoint(local.x, local.z, state.context.bounds, state.context.size);
-}
+const CATEGORY_STYLES = {
+  scenic: { ring: "#d9a655", dot: "#fff1cf" },
+  hotel: { ring: "#7da8e9", dot: "#e9f2ff" },
+  station: { ring: "#84c8af", dot: "#e4fff5" },
+  business: { ring: "#d98060", dot: "#ffe8dc" },
+  fallback: { ring: "#bb8430", dot: "#fff1c4" },
+};
 
 function shouldLoadResidentialLayer(state, bounds) {
   if (!hasAmapWebKey() || !state.context || !bounds) {
@@ -71,39 +20,47 @@ function shouldLoadResidentialLayer(state, bounds) {
   }
 
   const span = Math.max(bounds.maxLon - bounds.minLon, bounds.maxLat - bounds.minLat);
-  if (state.context.level === "country") {
-    return span <= 0.04;
-  }
-  if (state.context.level === "district") {
-    return span <= 0.22;
-  }
-  if (state.context.level === "city") {
-    return span <= 0.09;
-  }
-  if (state.context.level === "province") {
-    return span <= 0.05;
-  }
+  return shouldRenderViewportPoiLayer({
+    hasAmapWebKey: true,
+    span,
+  });
+}
 
-  return false;
+function markerStyleForFeature(feature) {
+  return CATEGORY_STYLES[feature?.properties?.categoryId] || CATEGORY_STYLES.fallback;
+}
+
+function createMarkerMaterials() {
+  const cache = new Map();
+  return (feature) => {
+    const style = markerStyleForFeature(feature);
+    const key = `${style.ring}:${style.dot}`;
+    if (!cache.has(key)) {
+      cache.set(key, {
+        ringMaterial: new THREE.MeshBasicMaterial({
+          color: style.ring,
+          transparent: true,
+          opacity: 0.76,
+          side: THREE.DoubleSide,
+          depthTest: false,
+        }),
+        dotMaterial: new THREE.MeshBasicMaterial({
+          color: style.dot,
+          transparent: true,
+          opacity: 0.96,
+          depthTest: false,
+        }),
+      });
+    }
+    return cache.get(key);
+  };
 }
 
 function createResidentialMarkerGroup({ features, bounds, size, sampleHeight }) {
   const group = new THREE.Group();
-  const ringGeometry = new THREE.RingGeometry(0.045, 0.07, 20);
-  const dotGeometry = new THREE.CircleGeometry(0.022, 16);
-  const ringMaterial = new THREE.MeshBasicMaterial({
-    color: "#bb8430",
-    transparent: true,
-    opacity: 0.7,
-    side: THREE.DoubleSide,
-    depthTest: false,
-  });
-  const dotMaterial = new THREE.MeshBasicMaterial({
-    color: "#fff1c4",
-    transparent: true,
-    opacity: 0.95,
-    depthTest: false,
-  });
+  const ringGeometry = new THREE.RingGeometry(0.05, 0.082, 22);
+  const dotGeometry = new THREE.CircleGeometry(0.025, 18);
+  const materialsForFeature = createMarkerMaterials();
 
   features.forEach((feature) => {
     const [lon, lat] = feature.properties?.center || featureCenter(feature);
@@ -111,6 +68,7 @@ function createResidentialMarkerGroup({ features, bounds, size, sampleHeight }) 
       return;
     }
 
+    const { ringMaterial, dotMaterial } = materialsForFeature(feature);
     const height = sampleHeight(lon, lat) + 0.16;
     const [x, y, z] = projectLonLat(lon, lat, bounds, size, height);
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -128,14 +86,15 @@ function createResidentialMarkerGroup({ features, bounds, size, sampleHeight }) 
   return group;
 }
 
-function resetResidentialLayerState(state, regionLabel = "全国") {
+function resetResidentialLayerState(state, regionLabel = "中国") {
   state.callbacks.setResidentialLayerState((current) => ({
     ...current,
-    status: hasAmapWebKey() ? "pending" : "failed",
+    status: hasAmapWebKey() ? "ready" : "failed",
     regionLabel,
     viewportLabel: "",
     resultCount: 0,
     error: hasAmapWebKey() ? "" : current.error,
+    note: hasAmapWebKey() ? viewportPoiSuppressedNote() : current.note,
   }));
 }
 
@@ -146,9 +105,21 @@ function residentialStateUpdate(state, payload) {
   }));
 }
 
+function buildViewportPoiLabels(features, bounds) {
+  return buildLabels({
+    features: features.slice(0, 6),
+    bounds,
+    level: "poi",
+  }).map((item) => ({
+    ...item,
+    offset: [0, -12],
+    heightOffset: 0.22,
+  }));
+}
+
 export function prepareResidentialLayerForNode(state, node) {
   clearDetailLayer(state, state.residentialLayer);
-  resetResidentialLayerState(state, node?.fullName || node?.name || "全国");
+  resetResidentialLayerState(state, node?.fullName || node?.name || "中国");
 }
 
 export async function updateResidentialLayer(state) {
@@ -157,7 +128,7 @@ export async function updateResidentialLayer(state) {
   }
 
   const bounds = visibleGeoBounds(state);
-  const regionLabel = state.context.node.fullName || state.context.node.name || "全国";
+  const regionLabel = state.context.node.fullName || state.context.node.name || "中国";
   if (!shouldLoadResidentialLayer(state, bounds)) {
     clearDetailLayer(state, state.residentialLayer);
     resetResidentialLayerState(state, regionLabel);
@@ -180,16 +151,16 @@ export async function updateResidentialLayer(state) {
 
   const requestContext = state.context;
   try {
-    const result = await searchResidentialViewport(bounds, 25, 40);
+    const result = await searchViewportPois(bounds);
     if (state.disposed || state.context !== requestContext || state.residentialLayer.loadingKey !== key) {
       return;
     }
 
     const features = result.features;
-
     clearDetailLayer(state, state.residentialLayer);
     state.residentialLayer.key = key;
     state.residentialLayer.features = features;
+
     if (features.length) {
       const polygonFeatures = features.filter((feature) => feature.geometry);
       const group = new THREE.Group();
@@ -205,6 +176,7 @@ export async function updateResidentialLayer(state) {
           }),
         );
       }
+
       group.add(
         createResidentialMarkerGroup({
           features,
@@ -213,33 +185,25 @@ export async function updateResidentialLayer(state) {
           sampleHeight: requestContext.terrain.sampleHeight,
         }),
       );
+
       state.residentialLayer.group = group;
       state.terrainGroup.add(group);
       state.residentialLayer.labels = createLabelElements({
-        labels: buildLabels({ features: features.slice(0, 12), bounds: requestContext.bounds, level: "poi" }).map((item) => ({
-          ...item,
-          offset: [0, -12],
-          heightOffset: 0.22,
-        })),
+        labels: buildViewportPoiLabels(features, requestContext.bounds),
         labelLayer: state.labelLayer,
         replace: false,
       });
     }
 
-    const pageLimitReached = result.totalCount > result.pageCount;
-    const pointOnly = features.length > 0 && features.every((feature) => feature.properties?.geometryStatus !== "ready");
     residentialStateUpdate(state, {
-      status: pageLimitReached || pointOnly ? "partial" : "ready",
+      status: result.status,
       loaded: state.residentialLayerStateRef.current.loaded + 1,
       failed: state.residentialLayerStateRef.current.failed,
       resultCount: features.length,
       regionLabel,
       viewportLabel: result.viewport,
-      error: pageLimitReached
-        ? `当前视野结果过多，已截取前 ${result.pageCount} 条住宅 POI。`
-        : pointOnly
-          ? "当前视野结果以点位为主，高德未返回真实小区边界面。"
-          : "",
+      error: result.error || "",
+      note: result.note,
     });
   } catch (error) {
     if (state.residentialLayer.loadingKey === key) {
@@ -253,7 +217,7 @@ export async function updateResidentialLayer(state) {
       resultCount: 0,
       regionLabel,
       viewportLabel: polygonQueryParam(bounds),
-      error: error instanceof Error ? error.message : "高德视野内小区层加载失败",
+      error: error instanceof Error ? error.message : "高德精细地点层加载失败",
     });
   }
 }

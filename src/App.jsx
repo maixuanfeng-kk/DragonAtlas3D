@@ -1,32 +1,44 @@
 import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+import { AmapDetailView } from "./components/AmapDetailView.jsx";
+import { DetailMapPrompt } from "./components/DetailMapPrompt.jsx";
+import { HeroOverlay } from "./components/HeroOverlay.jsx";
 import { HudPanels } from "./components/HudPanels.jsx";
 import { TravelPlannerPanel } from "./components/TravelPlannerPanel.jsx";
-import { findFeatureAt, unprojectMapPoint } from "./map/geo.js";
-import { createSceneState, clearSceneLayers, setCameraForMode, setupSceneRuntime, resizeScene } from "./map/sceneRuntime.js";
-import { renderRegion } from "./map/regionRenderer.js";
-import { pickResidentialFeatureAt, updateResidentialLayer } from "./map/residentialLayer.js";
-import { chooseFeature as submitChooseFeature, selectPoiOnMap, selectTravelFeatureOnMap, submitSearch } from "./map/searchController.js";
-import { updateDetailLayers } from "./map/sceneDetails.js";
+import { buildLocationReveal } from "./components/heroCopy.js";
+import { normalizeDestinationQuery } from "./components/searchQuery.js";
+import { searchAdminDistrict } from "./map/adminSearch.js";
+import { createDetailMapViewport, hasAmapJsApiKey, shouldResetDetailMapPrompt, shouldSuggestDetailMap } from "./map/detailMapMode.js";
 import { collectSceneLabelItems } from "./map/labelItems.js";
 import { updateLabelPositions } from "./map/overlays.js";
-import { syncTravelRouteLayer } from "./map/travelRouteLayer.js";
-import { pickTravelNodeAt } from "./map/wuhanTravelNodes.js";
+import { updateResidentialLayer } from "./map/residentialLayer.js";
+import { renderRegion } from "./map/regionRenderer.js";
+import { setupSceneInteractions } from "./map/sceneInteractions.js";
+import { clearSceneLayers, createSceneState, resizeScene, setCameraForMode, setupSceneRuntime } from "./map/sceneRuntime.js";
 import {
   COUNTRY_NODE,
-  initialResidentialLayerState,
-  initialPoiSearchState,
   INITIAL_STATS,
-  MAX_VIEW_ZOOM,
-  MIN_VIEW_ZOOM,
+  initialPoiSearchState,
+  initialResidentialLayerState,
   sourceUrlForNode,
 } from "./map/viewState.js";
 import { useTravelPlanner } from "./useTravelPlanner.js";
+
+const SEARCH_REVEAL_DELAY_MS = 760;
+const SEARCH_REVEAL_HIDE_MS = 3200;
+
+function clearTimer(timerRef) {
+  if (timerRef.current) {
+    window.clearTimeout(timerRef.current);
+    timerRef.current = 0;
+  }
+}
 
 export default function App() {
   const stageRef = useRef(null);
   const labelLayerRef = useRef(null);
   const sceneApiRef = useRef(null);
+  const revealAdvanceTimerRef = useRef(0);
+  const revealDismissTimerRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [stats, setStats] = useState(INITIAL_STATS);
@@ -38,10 +50,65 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [poiSearchState, setPoiSearchState] = useState(initialPoiSearchState());
   const [residentialLayerState, setResidentialLayerState] = useState(initialResidentialLayerState());
+  const [locationReveal, setLocationReveal] = useState(null);
+  const [detailMapMode, setDetailMapMode] = useState(false);
+  const [detailMapPromptVisible, setDetailMapPromptVisible] = useState(false);
+  const [detailMapPromptDismissed, setDetailMapPromptDismissed] = useState(false);
+  const [detailMapViewport, setDetailMapViewport] = useState(null);
   const travelPlanner = useTravelPlanner(setNotice);
   const trailRef = useRef(trail);
   const cameraModeRef = useRef(cameraMode);
   const residentialLayerStateRef = useRef(residentialLayerState);
+  const detailMapModeRef = useRef(detailMapMode);
+  const detailMapPromptDismissedRef = useRef(detailMapPromptDismissed);
+
+  const syncDetailMapPrompt = ({ currentNode, bounds }) => {
+    const viewport = createDetailMapViewport({ currentNode, bounds });
+    setDetailMapViewport(viewport);
+
+    if (!viewport) {
+      setDetailMapPromptVisible(false);
+      return;
+    }
+
+    const shouldResetPrompt = shouldResetDetailMapPrompt({
+      currentNode,
+      span: viewport.span,
+      promptDismissed: detailMapPromptDismissedRef.current,
+    });
+
+    const promptDismissed = shouldResetPrompt ? false : detailMapPromptDismissedRef.current;
+    if (shouldResetPrompt) {
+      detailMapPromptDismissedRef.current = false;
+      setDetailMapPromptDismissed(false);
+    }
+
+    const shouldShowPrompt = shouldSuggestDetailMap({
+      currentNode,
+      span: viewport.span,
+      hasJsApiKey: hasAmapJsApiKey(),
+      detailMode: detailMapModeRef.current,
+      promptDismissed,
+    });
+
+    setDetailMapPromptVisible(shouldShowPrompt);
+  };
+
+  const scheduleRevealAndAdvance = ({ reveal, onAdvance }) => {
+    clearTimer(revealAdvanceTimerRef);
+    clearTimer(revealDismissTimerRef);
+    setLocationReveal(reveal);
+
+    revealAdvanceTimerRef.current = window.setTimeout(() => {
+      revealAdvanceTimerRef.current = 0;
+      void onAdvance?.();
+    }, SEARCH_REVEAL_DELAY_MS);
+
+    revealDismissTimerRef.current = window.setTimeout(() => {
+      revealDismissTimerRef.current = 0;
+      setLocationReveal(null);
+    }, SEARCH_REVEAL_HIDE_MS);
+  };
 
   useEffect(() => {
     trailRef.current = trail;
@@ -54,6 +121,14 @@ export default function App() {
   useEffect(() => {
     residentialLayerStateRef.current = residentialLayerState;
   }, [residentialLayerState]);
+
+  useEffect(() => {
+    detailMapModeRef.current = detailMapMode;
+  }, [detailMapMode]);
+
+  useEffect(() => {
+    detailMapPromptDismissedRef.current = detailMapPromptDismissed;
+  }, [detailMapPromptDismissed]);
 
   useEffect(() => {
     const container = stageRef.current;
@@ -76,6 +151,8 @@ export default function App() {
         setSearch,
         setPoiSearchState,
         setResidentialLayerState,
+        scheduleLocationReveal: scheduleRevealAndAdvance,
+        onViewportChange: syncDetailMapPrompt,
       },
       cameraModeRef,
       residentialLayerStateRef,
@@ -92,181 +169,7 @@ export default function App() {
       }, delay);
     };
 
-    const clientPointToMapLocal = (clientX, clientY) => {
-      if (!state.context) {
-        return null;
-      }
-
-      const rect = container.getBoundingClientRect();
-      state.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      state.pointer.y = -(((clientY - rect.top) / rect.height) * 2 - 1);
-      state.raycaster.setFromCamera(state.pointer, state.camera);
-      const terrainHit = state.terrainMesh ? state.raycaster.intersectObject(state.terrainMesh, false)[0] : null;
-      let point = terrainHit?.point;
-      if (!point) {
-        point = new THREE.Vector3();
-        state.raycaster.ray.intersectPlane(state.groundPlane, point);
-      }
-      if (!point) {
-        return null;
-      }
-
-      return state.terrainGroup.worldToLocal(point.clone());
-    };
-
-    const clientPointToLonLat = (clientX, clientY) => {
-      const local = clientPointToMapLocal(clientX, clientY);
-      if (!local || !state.context) {
-        return null;
-      }
-
-      return unprojectMapPoint(local.x, local.z, state.context.bounds, state.context.size);
-    };
-
-    const handleClick = (event) => {
-      const lonLat = clientPointToLonLat(event.clientX, event.clientY);
-      if (!lonLat || !state.context) {
-        return;
-      }
-
-      const travelFeature = pickTravelNodeAt(lonLat[0], lonLat[1], state.travelNodeLayer.features);
-      const feature = findFeatureAt(lonLat[0], lonLat[1], state.context.namedFeatures);
-      const poiFeature = pickResidentialFeatureAt(lonLat[0], lonLat[1], state.residentialLayer.features);
-      if (travelFeature) {
-        sceneApiRef.current?.selectTravelFeature(travelFeature);
-        return;
-      }
-      if (poiFeature) {
-        sceneApiRef.current?.selectPoiFeature(poiFeature);
-        return;
-      }
-      if (feature) {
-        sceneApiRef.current?.chooseByAdcode(String(feature.properties?.adcode || ""));
-      }
-    };
-
-    const activePointerCenter = () => {
-      const pointers = [...state.activePointers.values()];
-      if (!pointers.length) {
-        const rect = container.getBoundingClientRect();
-        return {
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        };
-      }
-
-      const total = pointers.reduce((sum, item) => ({ x: sum.x + item.x, y: sum.y + item.y }), { x: 0, y: 0 });
-      return {
-        clientX: total.x / pointers.length,
-        clientY: total.y / pointers.length,
-      };
-    };
-
-    const pointerDistance = () => {
-      const pointers = [...state.activePointers.values()];
-      if (pointers.length < 2) {
-        return 0;
-      }
-
-      const [first, second] = pointers;
-      return Math.hypot(second.x - first.x, second.y - first.y);
-    };
-
-    const zoomAtPoint = (clientX, clientY, nextZoom) => {
-      const local = clientPointToMapLocal(clientX, clientY);
-      if (!local || !state.context) {
-        state.targetZoom = nextZoom;
-        return null;
-      }
-
-      const lonLat = unprojectMapPoint(local.x, local.z, state.context.bounds, state.context.size);
-      const rect = container.getBoundingClientRect();
-      const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-      const ndcY = -(((clientY - rect.top) / rect.height) * 2 - 1);
-      const viewWidth = (state.camera.right - state.camera.left) / nextZoom;
-      const viewHeight = (state.camera.top - state.camera.bottom) / nextZoom;
-      state.targetZoom = nextZoom;
-      state.targetPan.x = (ndcX * viewWidth) / 2 - local.x;
-      state.targetPan.z = (-ndcY * viewHeight) / 2 - local.z;
-      return lonLat;
-    };
-
-    const onPointerDown = (event) => {
-      state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      state.pointerStart.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      state.lastPinchDistance = pointerDistance();
-      state.isPointerDragging = false;
-      container.setPointerCapture?.(event.pointerId);
-    };
-
-    const onPointerMove = (event) => {
-      if (!state.activePointers.has(event.pointerId)) {
-        return;
-      }
-
-      const previous = state.activePointers.get(event.pointerId);
-      const dx = event.clientX - previous.x;
-      const dy = event.clientY - previous.y;
-      state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-      const start = state.pointerStart.get(event.pointerId);
-      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) {
-        state.isPointerDragging = true;
-      }
-
-      if (state.activePointers.size >= 2) {
-        const nextDistance = pointerDistance();
-        if (nextDistance > 0 && state.lastPinchDistance > 0) {
-          const zoomRatio = nextDistance / state.lastPinchDistance;
-          const nextZoom = Math.min(MAX_VIEW_ZOOM, Math.max(MIN_VIEW_ZOOM, state.targetZoom * zoomRatio));
-          const center = activePointerCenter();
-          state.lodFocusLonLat = zoomAtPoint(center.clientX, center.clientY, nextZoom);
-          void updateDetailLayers(state, state.lodFocusLonLat);
-          state.scheduleResidentialRefresh?.();
-        }
-        state.lastPinchDistance = nextDistance;
-        return;
-      }
-
-      const viewWidth = state.camera.right - state.camera.left;
-      const viewHeight = state.camera.top - state.camera.bottom;
-      state.targetPan.x += (dx / container.clientWidth) * (viewWidth / state.viewZoom);
-      state.targetPan.z += (dy / container.clientHeight) * (viewHeight / state.viewZoom);
-    };
-
-    const onPointerUp = (event) => {
-      const start = state.pointerStart.get(event.pointerId);
-      state.activePointers.delete(event.pointerId);
-      state.pointerStart.delete(event.pointerId);
-      state.lastPinchDistance = pointerDistance();
-      container.releasePointerCapture?.(event.pointerId);
-
-      if (start && !state.isPointerDragging) {
-        handleClick(event);
-      } else if (state.isPointerDragging && state.activePointers.size === 0) {
-        const center = activePointerCenter();
-        state.lodFocusLonLat = clientPointToLonLat(center.clientX, center.clientY) || state.lodFocusLonLat;
-        void updateDetailLayers(state, state.lodFocusLonLat);
-        state.scheduleResidentialRefresh?.();
-      }
-    };
-
-    const onWheel = (event) => {
-      event.preventDefault();
-      const nextZoom = Math.min(MAX_VIEW_ZOOM, Math.max(MIN_VIEW_ZOOM, state.targetZoom * Math.exp(-event.deltaY * 0.0012)));
-      state.lodFocusLonLat = zoomAtPoint(event.clientX, event.clientY, nextZoom);
-      void updateDetailLayers(state, state.lodFocusLonLat);
-      state.scheduleResidentialRefresh?.();
-    };
-
-    const resizeObserver = new ResizeObserver(() => resizeScene(state));
-    resizeObserver.observe(container);
-    container.addEventListener("pointerdown", onPointerDown);
-    container.addEventListener("pointermove", onPointerMove);
-    container.addEventListener("pointerup", onPointerUp);
-    container.addEventListener("pointercancel", onPointerUp);
-    container.addEventListener("pointerleave", onPointerUp);
-    container.addEventListener("wheel", onWheel, { passive: false });
+    const cleanupInteractions = setupSceneInteractions({ state, sceneApiRef, resizeScene });
 
     const animate = () => {
       if (state.disposed) {
@@ -289,50 +192,19 @@ export default function App() {
       state.animationFrame = window.requestAnimationFrame(animate);
     };
 
-    sceneApiRef.current = {
-      reset: () => {
-        renderRegion(state, COUNTRY_NODE, [COUNTRY_NODE]);
-      },
-      goToTrail: (index) => {
-        const node = trailRef.current[index] || COUNTRY_NODE;
-        const nextTrail = trailRef.current.slice(0, index + 1);
-        renderRegion(state, node, nextTrail);
-      },
-      chooseByAdcode: (adcode) => {
-        const feature = state.context?.namedFeatures.find((item) => String(item.properties?.adcode) === String(adcode));
-        if (feature) {
-          submitChooseFeature(state, feature);
-        }
-      },
-      selectPoiFeature: (feature) => {
-        selectPoiOnMap(state, feature);
-      },
-      selectTravelFeature: (feature) => {
-        selectTravelFeatureOnMap(state, feature);
-      },
-      syncTravelRoutes: (routeDays) => {
-        syncTravelRouteLayer(state, routeDays);
-      },
-    };
-
     resizeScene(state);
-    renderRegion(state, COUNTRY_NODE, [COUNTRY_NODE]);
+    void renderRegion(state, COUNTRY_NODE, [COUNTRY_NODE]);
     animate();
 
     return () => {
       state.disposed = true;
       window.cancelAnimationFrame(state.animationFrame);
-      resizeObserver.disconnect();
-      container.removeEventListener("pointerdown", onPointerDown);
-      container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerup", onPointerUp);
-      container.removeEventListener("pointercancel", onPointerUp);
-      container.removeEventListener("pointerleave", onPointerUp);
-      container.removeEventListener("wheel", onWheel);
+      cleanupInteractions();
       clearSceneLayers(state);
       state.renderer.dispose();
       state.renderer.domElement.remove();
-      sceneApiRef.current = null;
+      clearTimer(revealAdvanceTimerRef);
+      clearTimer(revealDismissTimerRef);
     };
   }, []);
 
@@ -340,89 +212,211 @@ export default function App() {
     sceneApiRef.current?.syncTravelRoutes(travelPlanner.planState.mapRouteDays);
   }, [travelPlanner.planState.mapRouteDays]);
 
+  const updateDestinationSearchState = ({ query, status, regionLabel, resultCount = 1, error = "", note }) => {
+    setPoiSearchState((current) => ({
+      ...current,
+      status,
+      requested: current.requested + 1,
+      loaded: status === "failed" ? current.loaded : current.loaded + 1,
+      failed: status === "failed" ? current.failed + 1 : current.failed,
+      resultCount,
+      query,
+      regionLabel,
+      error,
+      note: note || current.note,
+    }));
+  };
+
   const handleSubmitSearch = async (event) => {
     event.preventDefault();
-    const query = search.trim();
+    const form = event.currentTarget;
+    const formValue = form?.elements?.namedItem?.("destination")?.value;
+    const query = normalizeDestinationQuery(formValue, search);
     if (!query) {
       return;
     }
 
-    await submitSearch({
-      query,
-      currentFeatures,
-      currentNode,
-      sceneApi: sceneApiRef.current,
-      setSelectedNode,
-      setNotice,
-      setPoiSearchState,
-    });
+    const localMatch = currentFeatures.find(
+      (item) => item.fullName.includes(query) || item.name.includes(query) || item.adcode === query,
+    );
+
+    if (localMatch) {
+      updateDestinationSearchState({
+        query,
+        status: "ready",
+        regionLabel: localMatch.fullName,
+        note: "已在当前行政层级内锁定目标地点，准备推进到该区域的真实地形视角。",
+      });
+      scheduleRevealAndAdvance({
+        reveal: buildLocationReveal({
+          node: localMatch,
+          sourceLabel: "当前行政区数据",
+        }),
+        onAdvance: async () => {
+          await sceneApiRef.current?.chooseByAdcode(localMatch.adcode, {
+            transition: { startZoom: 0.94, targetZoom: 1.08, delay: 180 },
+          });
+        },
+      });
+      return;
+    }
+
+    try {
+      const adminResult = await searchAdminDistrict(query);
+      if (!adminResult.node) {
+        throw new Error(`高德行政区查询没有返回“${query}”的有效行政区结果。`);
+      }
+
+      updateDestinationSearchState({
+        query,
+        status: "ready",
+        regionLabel: adminResult.node.fullName,
+        note: "已通过高德行政区查询锁定目标地点，准备推进到该区域的真实地形视角。",
+      });
+      scheduleRevealAndAdvance({
+        reveal: buildLocationReveal({
+          node: adminResult.node,
+          sourceLabel: adminResult.source.label,
+        }),
+        onAdvance: async () => {
+          sceneApiRef.current?.goToNode(adminResult.node, adminResult.trail, {
+            transition: { startZoom: 0.9, targetZoom: 1.06, delay: 220 },
+          });
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "目的地搜索失败。";
+      updateDestinationSearchState({
+        query,
+        status: "failed",
+        regionLabel: currentNode.fullName || currentNode.name,
+        resultCount: 0,
+        error: message,
+        note: "当前未能锁定全国范围内的城市或省份，请检查高德 key，或先在已加载层级内探索。",
+      });
+      setNotice(message);
+    }
   };
 
   const handleCopyApi = async () => {
-    const url = selectedNode.level === currentNode.level ? sourceUrlForNode(currentNode, true) : sourceUrlForNode(selectedNode, true);
+    const url =
+      selectedNode.level === currentNode.level
+        ? sourceUrlForNode(currentNode, true)
+        : sourceUrlForNode(selectedNode, true);
+
     try {
       await navigator.clipboard.writeText(url);
-      setNotice("GeoJSON API 已复制");
+      setNotice("当前 GeoJSON 数据地址已复制。");
     } catch {
-      setNotice("复制失败，请手动复制链接");
+      setNotice("复制失败，请手动复制当前 GeoJSON 数据地址。");
     }
   };
 
   const panelNode = selectedNode || currentNode;
   const currentTravelCandidate = panelNode?.level && panelNode.level !== "country" ? panelNode : null;
+  const enterDetailMap = () => {
+    if (!detailMapViewport) {
+      return;
+    }
+
+    setDetailMapPromptVisible(false);
+    setDetailMapMode(true);
+  };
+  const dismissDetailMapPrompt = () => {
+    detailMapPromptDismissedRef.current = true;
+    setDetailMapPromptDismissed(true);
+    setDetailMapPromptVisible(false);
+  };
+  const exitDetailMap = () => {
+    detailMapModeRef.current = false;
+    detailMapPromptDismissedRef.current = true;
+    setDetailMapMode(false);
+    setDetailMapPromptDismissed(true);
+    setDetailMapPromptVisible(false);
+  };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${loading ? "is-loading" : "is-ready"}`}>
       <main className="scene-stage">
         <div className="scene-vignette" aria-hidden="true"></div>
-        <div ref={stageRef} className="map-surface" aria-label="真实高程中国三维地势地图"></div>
+        <div
+          ref={stageRef}
+          className="map-surface"
+          role="application"
+          tabIndex={0}
+          aria-label="中国三维地势图。支持拖拽平移、滚轮缩放，以及俯视与轻倾斜视角切换。"
+        ></div>
         <div ref={labelLayerRef} className="label-layer" aria-hidden="true"></div>
       </main>
 
-      <HudPanels
-        trail={trail}
-        cameraMode={cameraMode}
-        setCameraMode={setCameraMode}
-        currentFeatures={currentFeatures}
-        search={search}
-        setSearch={setSearch}
-        handleSubmitSearch={handleSubmitSearch}
-        panelNode={panelNode}
-        currentNode={currentNode}
-        stats={stats}
-        poiSearchState={poiSearchState}
-        residentialLayerState={residentialLayerState}
-        handleCopyApi={handleCopyApi}
-        reset={() => sceneApiRef.current?.reset()}
-        goToTrail={(index) => sceneApiRef.current?.goToTrail(index)}
-      />
+      {!detailMapMode && (
+        <>
+          <HeroOverlay
+            currentNode={currentNode}
+            stats={stats}
+            poiSearchState={poiSearchState}
+            residentialLayerState={residentialLayerState}
+            search={search}
+            setSearch={setSearch}
+            handleSubmitSearch={handleSubmitSearch}
+            locationReveal={locationReveal}
+          />
 
-      <TravelPlannerPanel
-        currentCandidate={currentTravelCandidate}
-        selectedNodes={travelPlanner.selectedNodes}
-        tripDays={travelPlanner.tripDays}
-        setTripDays={travelPlanner.setTripDays}
-        dayOrNightPreference={travelPlanner.dayOrNightPreference}
-        setDayOrNightPreference={travelPlanner.setDayOrNightPreference}
-        interestTags={travelPlanner.interestTags}
-        setInterestTags={travelPlanner.setInterestTags}
-        clarifyState={travelPlanner.clarifyState}
-        planState={travelPlanner.planState}
-        addCurrentSelection={() => travelPlanner.addCurrentSelection(currentTravelCandidate)}
-        removeSelection={travelPlanner.removeSelection}
-        clearSelection={travelPlanner.clearSelection}
-        handleClarify={travelPlanner.handleClarify}
-        handlePlan={travelPlanner.handlePlan}
-      />
+          <HudPanels
+            trail={trail}
+            cameraMode={cameraMode}
+            setCameraMode={setCameraMode}
+            panelNode={panelNode}
+            stats={stats}
+            poiSearchState={poiSearchState}
+            residentialLayerState={residentialLayerState}
+            handleCopyApi={handleCopyApi}
+            reset={() => sceneApiRef.current?.reset()}
+            goToTrail={(index) => sceneApiRef.current?.goToTrail(index)}
+          />
 
-      {notice && <div className="toast">{notice}</div>}
+          <TravelPlannerPanel
+            currentCandidate={currentTravelCandidate}
+            selectedNodes={travelPlanner.selectedNodes}
+            tripDays={travelPlanner.tripDays}
+            setTripDays={travelPlanner.setTripDays}
+            dayOrNightPreference={travelPlanner.dayOrNightPreference}
+            setDayOrNightPreference={travelPlanner.setDayOrNightPreference}
+            interestTags={travelPlanner.interestTags}
+            setInterestTags={travelPlanner.setInterestTags}
+            clarifyState={travelPlanner.clarifyState}
+            planState={travelPlanner.planState}
+            addCurrentSelection={() => travelPlanner.addCurrentSelection(currentTravelCandidate)}
+            removeSelection={travelPlanner.removeSelection}
+            clearSelection={travelPlanner.clearSelection}
+            handleClarify={travelPlanner.handleClarify}
+            handlePlan={travelPlanner.handlePlan}
+          />
+
+          {detailMapPromptVisible && detailMapViewport && (
+            <DetailMapPrompt
+              currentNode={detailMapViewport.node}
+              onEnter={enterDetailMap}
+              onDismiss={dismissDetailMapPrompt}
+            />
+          )}
+        </>
+      )}
+
+      {detailMapMode && detailMapViewport && <AmapDetailView viewport={detailMapViewport} onBack={exitDetailMap} />}
+
+      {notice && (
+        <div className="toast" role="status" aria-live="polite">
+          {notice}
+        </div>
+      )}
 
       {loading && (
-        <div id="loading-mask">
+        <div id="loading-mask" role="status" aria-live="polite" aria-label="地图数据加载中">
           <div className="loading-card">
-            <span className="loading-tag">LOADING REAL TERRAIN</span>
-            <h2>加载真实高程地势</h2>
-            <p>正在请求 DataV 行政边界、Terrarium DEM、ArcGIS 免费影像和山体阴影瓦片。</p>
+            <span className="loading-tag">REAL TERRAIN ONLINE</span>
+            <h2>正在唤醒中国地形底座</h2>
+            <p>正在请求行政边界、真实高程、免费影像与山体阴影数据，准备进入默认全国全景视角。</p>
           </div>
         </div>
       )}

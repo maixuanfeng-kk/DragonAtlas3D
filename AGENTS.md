@@ -12,17 +12,17 @@ Always judge map, UI, data, and architecture changes by whether they help the la
 
 - Do not add silent or automatic fallback strategies. If a data source fails, surface the failure in the UI or final report; do not switch to another provider without explicit user approval.
 - Do not hide uncertainty. If data is partial, stale, approximate, simulated, unavailable, rate-limited, or failed, make that status visible.
-- Do not introduce paid, account-gated, token-gated, or key-required services unless the user explicitly approves that provider and supplies the required key.
-- Do not use Bing Maps, Azure Maps, Mapbox, Google Maps, or similar key-required providers by default.
+- Amap Web Service is an approved project data source when using the user's configured key. It may be used for precise POI, address, geocoding, AOI, neighborhood, scenic-spot, transport-node, business-area, and exact place lookup data.
+- Do not use Bing Maps, Azure Maps, Mapbox, Google Maps, or other paid/account-gated/key-required providers by default unless the user explicitly approves that specific provider and supplies its required credentials.
 - Never fake "real elevation", "real imagery", "real-time data", POI data, address data, traffic data, weather data, or travel recommendations with procedural placeholders unless the UI labels it as simulated and the user has approved that mode.
 - Do not let a single source file exceed 400 lines. If a change would push a file beyond 400 lines, split the code into clear modules before or as part of that change.
 
 ## Data Source Standards
 
-Data quality is a core product requirement. Prefer data sources that are:
+Data quality is a core product requirement. For precise place and travel-exploration data, prefer the approved Amap data source when it fits the use case. For any additional source, prefer data sources that are:
 
 - useful in actual travel workflows;
-- free or no-cost for the current prototype;
+- free or no-cost where practical, or already approved and configured by the user;
 - accurate enough for user-facing travel decisions;
 - as real-time or frequently updated as the use case requires;
 - transparent about provenance, coverage, update frequency, terms, attribution, limits, and failure modes.
@@ -42,6 +42,7 @@ Before adding or replacing any map, DEM, imagery, administrative boundary, river
 - Terrarium DEM tiles are for elevation.
 - ArcGIS World Imagery is the current no-key imagery layer.
 - ArcGIS World Hillshade is the current no-key hillshade layer.
+- Amap Web Service may be used, with the user's explicit approval and key, as a precise place/POI/AOI data layer for neighborhoods, scenic spots, hotels, transport nodes, business areas, and exact place lookup. It must not replace the Three.js 3D terrain base and must not be described as a silent fallback.
 - Each network-backed layer must expose an explicit status such as `pending`, `ready`, `partial`, or `failed`.
 
 ## UX Direction
