@@ -1,5 +1,6 @@
 import { startTransition, useState } from "react";
 import { postTravelClarify, postTravelPlan } from "./api/travelAgentClient.js";
+import { normalizePlanDays, selectDayFromPlan } from "./map/detailMapItineraryModel.js";
 import { createInitialTravelClarifyState, createInitialTravelPlanState, TRAVEL_PLAN_DEFAULTS } from "./map/travelPlanState.js";
 import { addTravelSelection, buildTravelRequestPayload, removeTravelSelection } from "./map/travelSelection.js";
 
@@ -81,12 +82,17 @@ export function useTravelPlanner(setNotice) {
           },
         }),
       );
+      const normalizedPlan = normalizePlanDays(response);
       startTransition(() => {
         setPlanState({
           status: "ready",
           answer: response.answer || "",
           selectedReasoning: response.selected_reasoning || "",
           itinerary: response.itinerary || null,
+          days: normalizedPlan.days,
+          activeDay: normalizedPlan.activeDay,
+          activeStopId: normalizedPlan.days[0]?.stops?.[0]?.stop_id || "",
+          activeLegId: normalizedPlan.days[0]?.legs?.[0]?.leg_id || "",
           mapRouteDays: response.map_route_days || [],
           poiCards: response.poi_cards || [],
           sourceStatus: response.source_status || [],
@@ -100,6 +106,27 @@ export function useTravelPlanner(setNotice) {
       setPlanState((current) => ({ ...current, status: "failed", error: message }));
       setNotice(message);
     }
+  };
+
+  const setActiveDay = (requestedDay) => {
+    setPlanState((current) => {
+      const activeDay = selectDayFromPlan({ requestedDay, days: current.days });
+      const activePlan = current.days.find((day) => day.day === activeDay) || current.days[0] || null;
+      return {
+        ...current,
+        activeDay,
+        activeStopId: activePlan?.stops?.[0]?.stop_id || "",
+        activeLegId: activePlan?.legs?.[0]?.leg_id || "",
+      };
+    });
+  };
+
+  const setActiveStopId = (stopId) => {
+    setPlanState((current) => ({ ...current, activeStopId: stopId || "" }));
+  };
+
+  const setActiveLegId = (legId) => {
+    setPlanState((current) => ({ ...current, activeLegId: legId || "" }));
   };
 
   return {
@@ -117,5 +144,8 @@ export function useTravelPlanner(setNotice) {
     clearSelection,
     handleClarify,
     handlePlan,
+    setActiveDay,
+    setActiveStopId,
+    setActiveLegId,
   };
 }

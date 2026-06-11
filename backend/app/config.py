@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./travel_agent.db"
     note_source_paths: str = ""
+    amap_web_key: str = ""
+    amap_web_base_url: str = "https://restapi.amap.com"
     qwen_api_key: str = ""
     qwen_base_url: str = ""
     qwen_model: str = "qwen3.6-plus"

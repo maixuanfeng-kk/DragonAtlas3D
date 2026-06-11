@@ -57,6 +57,7 @@ class TravelClarifyResponse(BaseModel):
 
 
 class TravelPlanRequest(TravelClarifyRequest):
+    selected_nodes: list[SelectedNode] = Field(min_length=2, max_length=5)
     answers: dict[str, str] = Field(default_factory=dict)
 
 
@@ -78,10 +79,40 @@ class PoiCard(BaseModel):
     status: str = "auto_extracted"
 
 
+class ItineraryStop(BaseModel):
+    stop_id: str
+    name: str
+    place_type: str
+    center: list[float]
+    arrival_time: str
+    departure_time: str
+    dwell_minutes: int
+    reason: str
+    source_status: SourceState = "ready"
+
+
+class ItineraryLeg(BaseModel):
+    leg_id: str
+    from_stop_id: str
+    to_stop_id: str
+    mode: str
+    mode_label: str
+    duration_minutes: int | None = None
+    distance_meters: int | None = None
+    departure_time: str = ""
+    arrival_time: str = ""
+    polyline: list[list[float]] = Field(default_factory=list)
+    provider: str = "amap-route-v2"
+    status: SourceState = "pending"
+    failure_reason: str = ""
+
+
 class ItineraryDay(BaseModel):
     day: int
+    title: str = ""
     summary: str = ""
-    nodes: list[str] = Field(default_factory=list)
+    stops: list[ItineraryStop] = Field(default_factory=list)
+    legs: list[ItineraryLeg] = Field(default_factory=list)
 
 
 class Itinerary(BaseModel):

@@ -27,7 +27,7 @@ export function addTravelSelection(existing, node) {
   }
 
   const next = [candidate, ...existing.filter((item) => item.id !== candidate.id)];
-  return next.slice(0, 3);
+  return next.slice(0, 5);
 }
 
 export function removeTravelSelection(existing, id) {
