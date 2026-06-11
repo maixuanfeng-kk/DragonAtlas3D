@@ -178,6 +178,76 @@
   margin-top: 18px;
 }
 
+.amap-itinerary-stop,
+.amap-itinerary-leg {
+  border: 1px solid rgba(7, 18, 29, 0.08);
+  background: rgba(255, 250, 238, 0.94);
+  box-shadow: 0 16px 32px rgba(3, 8, 15, 0.18);
+}
+
+.amap-itinerary-stop {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  min-width: 150px;
+  padding: 10px 12px;
+  border-radius: 18px;
+}
+
+.amap-itinerary-stop-index {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #236a57;
+  color: #fff8dc;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.amap-itinerary-stop-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.amap-itinerary-stop-copy strong {
+  color: #102632;
+  font-size: 13px;
+}
+
+.amap-itinerary-stop-copy small {
+  color: rgba(16, 38, 50, 0.64);
+  font-size: 11px;
+}
+
+.amap-itinerary-stop.is-active {
+  border-color: rgba(242, 169, 59, 0.56);
+}
+
+.amap-itinerary-stop.is-active .amap-itinerary-stop-index {
+  background: #f2a93b;
+  color: #11161f;
+}
+
+.amap-itinerary-leg {
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #102632;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.amap-itinerary-leg.is-active {
+  border-color: rgba(242, 169, 59, 0.56);
+  background: #fff1ce;
+}
+
+.amap-itinerary-leg.is-failed {
+  border-color: rgba(184, 92, 56, 0.36);
+  color: #7f2f13;
+}
+
 @media (max-width: 680px) {
   .detail-map-bar {
     top: max(10px, env(safe-area-inset-top));

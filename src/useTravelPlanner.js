@@ -1,5 +1,6 @@
 import { startTransition, useState } from "react";
 import { postTravelClarify, postTravelPlan } from "./api/travelAgentClient.js";
+import { normalizePlanDays, selectDayFromPlan } from "./map/detailMapItineraryModel.js";
 import { createInitialTravelClarifyState, createInitialTravelPlanState, TRAVEL_PLAN_DEFAULTS } from "./map/travelPlanState.js";
 import { addTravelSelection, buildTravelRequestPayload, removeTravelSelection } from "./map/travelSelection.js";
 
@@ -13,7 +14,7 @@ export function useTravelPlanner(setNotice) {
 
   const addCurrentSelection = (node) => {
     setSelectedNodes((current) => addTravelSelection(current, node));
-    setNotice("已加入旅游路线候选");
+    setNotice("已加入当前行程候选。");
   };
 
   const removeSelection = (id) => {
@@ -27,8 +28,8 @@ export function useTravelPlanner(setNotice) {
   };
 
   const handleClarify = async () => {
-    if (!selectedNodes.length) {
-      setNotice("请先在地图上选择并加入 1-3 个武汉节点");
+    if (selectedNodes.length < 2) {
+      setNotice("请先加入 2-5 个地点，再生成追问。");
       return;
     }
 
@@ -43,6 +44,7 @@ export function useTravelPlanner(setNotice) {
           interestTags,
         }),
       );
+
       startTransition(() => {
         setClarifyState({
           status: "ready",
@@ -52,17 +54,17 @@ export function useTravelPlanner(setNotice) {
           error: "",
         });
       });
-      setNotice("旅游 Agent 已生成首轮追问");
+      setNotice("旅行 Agent 已生成一轮追问。");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "旅游 Agent 追问生成失败";
+      const message = error instanceof Error ? error.message : "旅行 Agent 追问生成失败";
       setClarifyState((current) => ({ ...current, status: "failed", error: message }));
       setNotice(message);
     }
   };
 
   const handlePlan = async () => {
-    if (!selectedNodes.length) {
-      setNotice("请先在地图上选择并加入 1-3 个武汉节点");
+    if (selectedNodes.length < 2) {
+      setNotice("请先加入 2-5 个地点，再生成路线。");
       return;
     }
 
@@ -81,12 +83,17 @@ export function useTravelPlanner(setNotice) {
           },
         }),
       );
+      const normalizedPlan = normalizePlanDays(response);
       startTransition(() => {
         setPlanState({
           status: "ready",
           answer: response.answer || "",
           selectedReasoning: response.selected_reasoning || "",
           itinerary: response.itinerary || null,
+          days: normalizedPlan.days,
+          activeDay: normalizedPlan.activeDay,
+          activeStopId: normalizedPlan.days[0]?.stops?.[0]?.stop_id || "",
+          activeLegId: normalizedPlan.days[0]?.legs?.[0]?.leg_id || "",
           mapRouteDays: response.map_route_days || [],
           poiCards: response.poi_cards || [],
           sourceStatus: response.source_status || [],
@@ -94,12 +101,33 @@ export function useTravelPlanner(setNotice) {
           error: "",
         });
       });
-      setNotice("武汉旅游路线已生成");
+      setNotice("城市内路线方案已生成。");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "旅游路线生成失败";
+      const message = error instanceof Error ? error.message : "旅行路线生成失败";
       setPlanState((current) => ({ ...current, status: "failed", error: message }));
       setNotice(message);
     }
+  };
+
+  const setActiveDay = (requestedDay) => {
+    setPlanState((current) => {
+      const activeDay = selectDayFromPlan({ requestedDay, days: current.days });
+      const activePlan = current.days.find((day) => day.day === activeDay) || current.days[0] || null;
+      return {
+        ...current,
+        activeDay,
+        activeStopId: activePlan?.stops?.[0]?.stop_id || "",
+        activeLegId: activePlan?.legs?.[0]?.leg_id || "",
+      };
+    });
+  };
+
+  const setActiveStopId = (stopId) => {
+    setPlanState((current) => ({ ...current, activeStopId: stopId || "" }));
+  };
+
+  const setActiveLegId = (legId) => {
+    setPlanState((current) => ({ ...current, activeLegId: legId || "" }));
   };
 
   return {
@@ -117,5 +145,8 @@ export function useTravelPlanner(setNotice) {
     clearSelection,
     handleClarify,
     handlePlan,
+    setActiveDay,
+    setActiveStopId,
+    setActiveLegId,
   };
 }

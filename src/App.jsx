@@ -1,26 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { AmapDetailView } from "./components/AmapDetailView.jsx";
 import { DetailMapPrompt } from "./components/DetailMapPrompt.jsx";
 import { HeroOverlay } from "./components/HeroOverlay.jsx";
 import { HudPanels } from "./components/HudPanels.jsx";
-import { TravelPlannerPanel } from "./components/TravelPlannerPanel.jsx";
+import { TravelPlanningWorkspace } from "./components/TravelPlanningWorkspace.jsx";
 import { buildLocationReveal } from "./components/heroCopy.js";
 import { normalizeDestinationQuery } from "./components/searchQuery.js";
 import { searchAdminDistrict } from "./map/adminSearch.js";
-import { createDetailMapViewport, hasAmapJsApiKey, shouldResetDetailMapPrompt, shouldSuggestDetailMap } from "./map/detailMapMode.js";
 import { collectSceneLabelItems } from "./map/labelItems.js";
 import { updateLabelPositions } from "./map/overlays.js";
 import { updateResidentialLayer } from "./map/residentialLayer.js";
 import { renderRegion } from "./map/regionRenderer.js";
 import { setupSceneInteractions } from "./map/sceneInteractions.js";
 import { clearSceneLayers, createSceneState, resizeScene, setCameraForMode, setupSceneRuntime } from "./map/sceneRuntime.js";
-import {
-  COUNTRY_NODE,
-  INITIAL_STATS,
-  initialPoiSearchState,
-  initialResidentialLayerState,
-  sourceUrlForNode,
-} from "./map/viewState.js";
+import { COUNTRY_NODE, INITIAL_STATS, initialPoiSearchState, initialResidentialLayerState } from "./map/viewState.js";
+import { useDetailMapEntry } from "./useDetailMapEntry.js";
 import { useTravelPlanner } from "./useTravelPlanner.js";
 
 const SEARCH_REVEAL_DELAY_MS = 760;
@@ -51,48 +44,11 @@ export default function App() {
   const [poiSearchState, setPoiSearchState] = useState(initialPoiSearchState());
   const [residentialLayerState, setResidentialLayerState] = useState(initialResidentialLayerState());
   const [locationReveal, setLocationReveal] = useState(null);
-  const [detailMapMode, setDetailMapMode] = useState(false);
-  const [detailMapPromptVisible, setDetailMapPromptVisible] = useState(false);
-  const [detailMapPromptDismissed, setDetailMapPromptDismissed] = useState(false);
-  const [detailMapViewport, setDetailMapViewport] = useState(null);
   const travelPlanner = useTravelPlanner(setNotice);
+  const detailMap = useDetailMapEntry(setSelectedNode);
   const trailRef = useRef(trail);
   const cameraModeRef = useRef(cameraMode);
   const residentialLayerStateRef = useRef(residentialLayerState);
-  const detailMapModeRef = useRef(detailMapMode);
-  const detailMapPromptDismissedRef = useRef(detailMapPromptDismissed);
-
-  const syncDetailMapPrompt = ({ currentNode, bounds }) => {
-    const viewport = createDetailMapViewport({ currentNode, bounds });
-    setDetailMapViewport(viewport);
-
-    if (!viewport) {
-      setDetailMapPromptVisible(false);
-      return;
-    }
-
-    const shouldResetPrompt = shouldResetDetailMapPrompt({
-      currentNode,
-      span: viewport.span,
-      promptDismissed: detailMapPromptDismissedRef.current,
-    });
-
-    const promptDismissed = shouldResetPrompt ? false : detailMapPromptDismissedRef.current;
-    if (shouldResetPrompt) {
-      detailMapPromptDismissedRef.current = false;
-      setDetailMapPromptDismissed(false);
-    }
-
-    const shouldShowPrompt = shouldSuggestDetailMap({
-      currentNode,
-      span: viewport.span,
-      hasJsApiKey: hasAmapJsApiKey(),
-      detailMode: detailMapModeRef.current,
-      promptDismissed,
-    });
-
-    setDetailMapPromptVisible(shouldShowPrompt);
-  };
 
   const scheduleRevealAndAdvance = ({ reveal, onAdvance }) => {
     clearTimer(revealAdvanceTimerRef);
@@ -123,14 +79,6 @@ export default function App() {
   }, [residentialLayerState]);
 
   useEffect(() => {
-    detailMapModeRef.current = detailMapMode;
-  }, [detailMapMode]);
-
-  useEffect(() => {
-    detailMapPromptDismissedRef.current = detailMapPromptDismissed;
-  }, [detailMapPromptDismissed]);
-
-  useEffect(() => {
     const container = stageRef.current;
     const labelLayer = labelLayerRef.current;
     if (!container || !labelLayer) {
@@ -152,12 +100,13 @@ export default function App() {
         setPoiSearchState,
         setResidentialLayerState,
         scheduleLocationReveal: scheduleRevealAndAdvance,
-        onViewportChange: syncDetailMapPrompt,
+        onViewportChange: detailMap.syncDetailMapPrompt,
       },
       cameraModeRef,
       residentialLayerStateRef,
       trailRef,
     });
+
     setupSceneRuntime(state);
     state.scheduleResidentialRefresh = (delay = 560) => {
       if (state.residentialTimer) {
@@ -208,10 +157,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    sceneApiRef.current?.syncTravelRoutes(travelPlanner.planState.mapRouteDays);
-  }, [travelPlanner.planState.mapRouteDays]);
-
   const updateDestinationSearchState = ({ query, status, regionLabel, resultCount = 1, error = "", note }) => {
     setPoiSearchState((current) => ({
       ...current,
@@ -225,6 +170,28 @@ export default function App() {
       error,
       note: note || current.note,
     }));
+  };
+
+  const enterDetailMap = () => {
+    if (!detailMapViewportRef.current) {
+      return;
+    }
+
+    setDetailMapPromptVisible(false);
+    setDetailMapMode(true);
+  };
+
+  const requestEnterDetailMap = (attempt = 0) => {
+    if (detailMapViewportRef.current) {
+      enterDetailMap();
+      return;
+    }
+
+    if (attempt >= 10) {
+      return;
+    }
+
+    window.setTimeout(() => requestEnterDetailMap(attempt + 1), 120);
   };
 
   const handleSubmitSearch = async (event) => {
@@ -245,17 +212,18 @@ export default function App() {
         query,
         status: "ready",
         regionLabel: localMatch.fullName,
-        note: "已在当前行政层级内锁定目标地点，准备推进到该区域的真实地形视角。",
+        note: "Locked the current city target and prepared the Amap detail viewport.",
       });
       scheduleRevealAndAdvance({
         reveal: buildLocationReveal({
           node: localMatch,
-          sourceLabel: "当前行政区数据",
+          sourceLabel: "Current administrative layer",
         }),
         onAdvance: async () => {
           await sceneApiRef.current?.chooseByAdcode(localMatch.adcode, {
             transition: { startZoom: 0.94, targetZoom: 1.08, delay: 180 },
           });
+          detailMap.requestEnterDetailMap();
         },
       });
       return;
@@ -264,14 +232,14 @@ export default function App() {
     try {
       const adminResult = await searchAdminDistrict(query);
       if (!adminResult.node) {
-        throw new Error(`高德行政区查询没有返回“${query}”的有效行政区结果。`);
+        throw new Error(`Amap district search did not return a usable result for "${query}".`);
       }
 
       updateDestinationSearchState({
         query,
         status: "ready",
         regionLabel: adminResult.node.fullName,
-        note: "已通过高德行政区查询锁定目标地点，准备推进到该区域的真实地形视角。",
+        note: "Locked the city by Amap administrative search and prepared the detail planner surface.",
       });
       scheduleRevealAndAdvance({
         reveal: buildLocationReveal({
@@ -282,57 +250,22 @@ export default function App() {
           sceneApiRef.current?.goToNode(adminResult.node, adminResult.trail, {
             transition: { startZoom: 0.9, targetZoom: 1.06, delay: 220 },
           });
+          detailMap.setViewportFromNode(adminResult.node);
+          detailMap.requestEnterDetailMap();
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "目的地搜索失败。";
+      const message = error instanceof Error ? error.message : "Destination search failed.";
       updateDestinationSearchState({
         query,
         status: "failed",
         regionLabel: currentNode.fullName || currentNode.name,
         resultCount: 0,
         error: message,
-        note: "当前未能锁定全国范围内的城市或省份，请检查高德 key，或先在已加载层级内探索。",
+        note: "The current destination could not be locked. Please verify the Amap key or try another city name.",
       });
       setNotice(message);
     }
-  };
-
-  const handleCopyApi = async () => {
-    const url =
-      selectedNode.level === currentNode.level
-        ? sourceUrlForNode(currentNode, true)
-        : sourceUrlForNode(selectedNode, true);
-
-    try {
-      await navigator.clipboard.writeText(url);
-      setNotice("当前 GeoJSON 数据地址已复制。");
-    } catch {
-      setNotice("复制失败，请手动复制当前 GeoJSON 数据地址。");
-    }
-  };
-
-  const panelNode = selectedNode || currentNode;
-  const currentTravelCandidate = panelNode?.level && panelNode.level !== "country" ? panelNode : null;
-  const enterDetailMap = () => {
-    if (!detailMapViewport) {
-      return;
-    }
-
-    setDetailMapPromptVisible(false);
-    setDetailMapMode(true);
-  };
-  const dismissDetailMapPrompt = () => {
-    detailMapPromptDismissedRef.current = true;
-    setDetailMapPromptDismissed(true);
-    setDetailMapPromptVisible(false);
-  };
-  const exitDetailMap = () => {
-    detailMapModeRef.current = false;
-    detailMapPromptDismissedRef.current = true;
-    setDetailMapMode(false);
-    setDetailMapPromptDismissed(true);
-    setDetailMapPromptVisible(false);
   };
 
   return (
@@ -344,12 +277,12 @@ export default function App() {
           className="map-surface"
           role="application"
           tabIndex={0}
-          aria-label="中国三维地势图。支持拖拽平移、滚轮缩放，以及俯视与轻倾斜视角切换。"
+          aria-label="中国 3D 地形首页，支持平移、缩放与进入高德细节规划模式。"
         ></div>
         <div ref={labelLayerRef} className="label-layer" aria-hidden="true"></div>
       </main>
 
-      {!detailMapMode && (
+      {!detailMap.detailMapMode && (
         <>
           <HeroOverlay
             currentNode={currentNode}
@@ -366,44 +299,30 @@ export default function App() {
             trail={trail}
             cameraMode={cameraMode}
             setCameraMode={setCameraMode}
-            panelNode={panelNode}
-            stats={stats}
-            poiSearchState={poiSearchState}
-            residentialLayerState={residentialLayerState}
-            handleCopyApi={handleCopyApi}
             reset={() => sceneApiRef.current?.reset()}
             goToTrail={(index) => sceneApiRef.current?.goToTrail(index)}
+            detailEntryEnabled={detailMap.detailEntryEnabled}
+            onEnterDetailMap={detailMap.enterDetailMap}
           />
 
-          <TravelPlannerPanel
-            currentCandidate={currentTravelCandidate}
-            selectedNodes={travelPlanner.selectedNodes}
-            tripDays={travelPlanner.tripDays}
-            setTripDays={travelPlanner.setTripDays}
-            dayOrNightPreference={travelPlanner.dayOrNightPreference}
-            setDayOrNightPreference={travelPlanner.setDayOrNightPreference}
-            interestTags={travelPlanner.interestTags}
-            setInterestTags={travelPlanner.setInterestTags}
-            clarifyState={travelPlanner.clarifyState}
-            planState={travelPlanner.planState}
-            addCurrentSelection={() => travelPlanner.addCurrentSelection(currentTravelCandidate)}
-            removeSelection={travelPlanner.removeSelection}
-            clearSelection={travelPlanner.clearSelection}
-            handleClarify={travelPlanner.handleClarify}
-            handlePlan={travelPlanner.handlePlan}
-          />
-
-          {detailMapPromptVisible && detailMapViewport && (
+          {detailMap.detailMapPromptVisible && detailMap.detailMapViewport && (
             <DetailMapPrompt
-              currentNode={detailMapViewport.node}
-              onEnter={enterDetailMap}
-              onDismiss={dismissDetailMapPrompt}
+              currentNode={detailMap.detailMapViewport.node}
+              onEnter={detailMap.enterDetailMap}
+              onDismiss={detailMap.dismissDetailMapPrompt}
             />
           )}
         </>
       )}
 
-      {detailMapMode && detailMapViewport && <AmapDetailView viewport={detailMapViewport} onBack={exitDetailMap} />}
+      <TravelPlanningWorkspace
+        detailMapMode={detailMap.detailMapMode}
+        detailMapViewport={detailMap.detailMapViewport}
+        onExitDetailMap={detailMap.exitDetailMap}
+        planner={travelPlanner}
+        onPreviewNode={detailMap.handlePreviewSelectionNode}
+        onPreviewNodes={detailMap.handlePreviewSelectionNodes}
+      />
 
       {notice && (
         <div className="toast" role="status" aria-live="polite">

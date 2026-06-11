@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canEnterDetailMapFrom3D,
   createDetailMapViewport,
   detailMapTriggerSpanForLevel,
   shouldResetDetailMapPrompt,
@@ -93,8 +94,8 @@ test("shouldResetDetailMapPrompt clears dismissal after zooming back out", () =>
 test("createDetailMapViewport derives center, span, and a street-scale zoom from visible bounds", () => {
   const viewport = createDetailMapViewport({
     currentNode: {
-      name: "洪山",
-      fullName: "洪山区",
+      name: "Hongshan",
+      fullName: "Hongshan District",
       level: "district",
     },
     bounds: {
@@ -108,5 +109,48 @@ test("createDetailMapViewport derives center, span, and a street-scale zoom from
   assert.deepEqual(viewport.center, [114.31, 30.575]);
   assert.equal(viewport.span, 0.08);
   assert.equal(viewport.zoom, 14);
-  assert.equal(viewport.node.fullName, "洪山区");
+  assert.equal(viewport.node.fullName, "Hongshan District");
+});
+
+test("createDetailMapViewport falls back to the node center when bounds are unavailable", () => {
+  const viewport = createDetailMapViewport({
+    currentNode: {
+      name: "Wuhan",
+      fullName: "Wuhan",
+      level: "city",
+      center: [114.3055, 30.5928],
+    },
+    bounds: null,
+  });
+
+  assert.deepEqual(viewport.center, [114.3055, 30.5928]);
+  assert.equal(viewport.span, 0);
+  assert.equal(viewport.zoom, 11);
+  assert.equal(viewport.node.fullName, "Wuhan");
+});
+
+test("canEnterDetailMapFrom3D allows a manual entry button before the zoom prompt threshold", () => {
+  assert.equal(
+    canEnterDetailMapFrom3D({
+      hasJsApiKey: true,
+      detailMode: false,
+      viewport: {
+        center: [114.3055, 30.5928],
+        node: { level: "city", fullName: "Wuhan" },
+      },
+    }),
+    true,
+  );
+
+  assert.equal(
+    canEnterDetailMapFrom3D({
+      hasJsApiKey: false,
+      detailMode: false,
+      viewport: {
+        center: [114.3055, 30.5928],
+        node: { level: "city", fullName: "Wuhan" },
+      },
+    }),
+    false,
+  );
 });

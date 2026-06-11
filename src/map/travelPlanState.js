@@ -1,5 +1,5 @@
 export const TRAVEL_PLAN_DEFAULTS = {
-  tripDays: 3,
+  tripDays: 1,
   dayOrNightPreference: "balanced",
   interestTags: ["sightseeing", "street"],
 };
@@ -20,6 +20,10 @@ export function createInitialTravelPlanState() {
     answer: "",
     selectedReasoning: "",
     itinerary: null,
+    days: [],
+    activeDay: 1,
+    activeStopId: "",
+    activeLegId: "",
     mapRouteDays: [],
     poiCards: [],
     sourceStatus: [],

@@ -88,9 +88,34 @@ export function shouldResetDetailMapPrompt({ currentNode, span, promptDismissed 
   );
 }
 
+export function canEnterDetailMapFrom3D({ hasJsApiKey, detailMode, viewport }) {
+  return (
+    Boolean(hasJsApiKey) &&
+    !detailMode &&
+    Array.isArray(viewport?.center) &&
+    viewport.center.length >= 2 &&
+    viewport?.node?.level &&
+    viewport.node.level !== "country"
+  );
+}
+
 export function createDetailMapViewport({ currentNode, bounds }) {
   if (!bounds) {
-    return null;
+    const center = Array.isArray(currentNode?.center) && currentNode.center.length >= 2
+      ? [Number(currentNode.center[0]), Number(currentNode.center[1])]
+      : null;
+
+    if (!center) {
+      return null;
+    }
+
+    return {
+      center,
+      span: 0,
+      zoom: 11,
+      node: currentNode || null,
+      bounds: null,
+    };
   }
 
   const span = Math.max(bounds.maxLon - bounds.minLon, bounds.maxLat - bounds.minLat);
