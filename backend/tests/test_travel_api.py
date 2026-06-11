@@ -61,6 +61,8 @@ def test_plan_returns_visit_order_polylines():
 
     assert response.status_code == 200
     body = response.json()
+    assert body["itinerary"]["days"][0]["stops"][0]["stop_id"]
+    assert body["itinerary"]["days"][0]["legs"][0]["from_stop_id"]
     assert body["map_route_days"][0]["route_type"] == "visit_order_polyline"
     assert body["uncertainty"]["level"] == "partial"
 
