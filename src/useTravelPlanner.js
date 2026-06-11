@@ -1,6 +1,6 @@
 import { startTransition, useState } from "react";
 import { postTravelClarify, postTravelPlan } from "./api/travelAgentClient.js";
-import { normalizePlanDays } from "./map/detailMapItineraryModel.js";
+import { normalizePlanDays, selectDayFromPlan } from "./map/detailMapItineraryModel.js";
 import { createInitialTravelClarifyState, createInitialTravelPlanState, TRAVEL_PLAN_DEFAULTS } from "./map/travelPlanState.js";
 import { addTravelSelection, buildTravelRequestPayload, removeTravelSelection } from "./map/travelSelection.js";
 
@@ -108,6 +108,27 @@ export function useTravelPlanner(setNotice) {
     }
   };
 
+  const setActiveDay = (requestedDay) => {
+    setPlanState((current) => {
+      const activeDay = selectDayFromPlan({ requestedDay, days: current.days });
+      const activePlan = current.days.find((day) => day.day === activeDay) || current.days[0] || null;
+      return {
+        ...current,
+        activeDay,
+        activeStopId: activePlan?.stops?.[0]?.stop_id || "",
+        activeLegId: activePlan?.legs?.[0]?.leg_id || "",
+      };
+    });
+  };
+
+  const setActiveStopId = (stopId) => {
+    setPlanState((current) => ({ ...current, activeStopId: stopId || "" }));
+  };
+
+  const setActiveLegId = (legId) => {
+    setPlanState((current) => ({ ...current, activeLegId: legId || "" }));
+  };
+
   return {
     selectedNodes,
     tripDays,
@@ -123,5 +144,8 @@ export function useTravelPlanner(setNotice) {
     clearSelection,
     handleClarify,
     handlePlan,
+    setActiveDay,
+    setActiveStopId,
+    setActiveLegId,
   };
 }

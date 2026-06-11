@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { AmapDetailView } from "./components/AmapDetailView.jsx";
 import { DetailMapPrompt } from "./components/DetailMapPrompt.jsx";
 import { HeroOverlay } from "./components/HeroOverlay.jsx";
 import { HudPanels } from "./components/HudPanels.jsx";
-import { TravelPlannerPanel } from "./components/TravelPlannerPanel.jsx";
+import { TravelPlanningWorkspace } from "./components/TravelPlanningWorkspace.jsx";
 import { buildLocationReveal } from "./components/heroCopy.js";
 import { normalizeDestinationQuery } from "./components/searchQuery.js";
 import { searchAdminDistrict } from "./map/adminSearch.js";
@@ -349,8 +348,9 @@ export default function App() {
         <div ref={labelLayerRef} className="label-layer" aria-hidden="true"></div>
       </main>
 
-      {!detailMapMode && (
-        <>
+      <>
+        {!detailMapMode && (
+          <>
           <HeroOverlay
             currentNode={currentNode}
             stats={stats}
@@ -375,22 +375,12 @@ export default function App() {
             goToTrail={(index) => sceneApiRef.current?.goToTrail(index)}
           />
 
-          <TravelPlannerPanel
+          <TravelPlanningWorkspace
+            detailMapMode={detailMapMode}
+            detailMapViewport={detailMapViewport}
+            onExitDetailMap={exitDetailMap}
             currentCandidate={currentTravelCandidate}
-            selectedNodes={travelPlanner.selectedNodes}
-            tripDays={travelPlanner.tripDays}
-            setTripDays={travelPlanner.setTripDays}
-            dayOrNightPreference={travelPlanner.dayOrNightPreference}
-            setDayOrNightPreference={travelPlanner.setDayOrNightPreference}
-            interestTags={travelPlanner.interestTags}
-            setInterestTags={travelPlanner.setInterestTags}
-            clarifyState={travelPlanner.clarifyState}
-            planState={travelPlanner.planState}
-            addCurrentSelection={() => travelPlanner.addCurrentSelection(currentTravelCandidate)}
-            removeSelection={travelPlanner.removeSelection}
-            clearSelection={travelPlanner.clearSelection}
-            handleClarify={travelPlanner.handleClarify}
-            handlePlan={travelPlanner.handlePlan}
+            planner={travelPlanner}
           />
 
           {detailMapPromptVisible && detailMapViewport && (
@@ -400,10 +390,17 @@ export default function App() {
               onDismiss={dismissDetailMapPrompt}
             />
           )}
-        </>
-      )}
+          </>
+        )}
 
-      {detailMapMode && detailMapViewport && <AmapDetailView viewport={detailMapViewport} onBack={exitDetailMap} />}
+        <TravelPlanningWorkspace
+          detailMapMode={detailMapMode}
+          detailMapViewport={detailMapViewport}
+          onExitDetailMap={exitDetailMap}
+          currentCandidate={currentTravelCandidate}
+          planner={travelPlanner}
+        />
+      </>
 
       {notice && (
         <div className="toast" role="status" aria-live="polite">

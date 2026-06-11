@@ -7,6 +7,16 @@
   padding: 12px;
 }
 
+.planner-panel-detail {
+  position: fixed;
+  top: 128px;
+  right: 18px;
+  z-index: 8;
+  width: min(390px, calc(100vw - 36px));
+  max-height: calc(100vh - 156px);
+  overflow: auto;
+}
+
 .planner-head {
   display: flex;
   align-items: flex-start;
@@ -120,6 +130,103 @@
   gap: 8px;
 }
 
+.planner-day-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planner-day-tabs button,
+.planner-stop-button,
+.planner-leg-card {
+  border: 1px solid rgba(46, 90, 77, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 251, 229, 0.78);
+  color: var(--green-dark);
+}
+
+.planner-day-tabs button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-weight: 800;
+}
+
+.planner-day-tabs button.is-active {
+  background: var(--green);
+  color: #fff8dc;
+}
+
+.planner-day-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.planner-stop-card,
+.planner-leg-card {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.planner-stop-card.is-active,
+.planner-leg-card.is-active {
+  transform: translateY(-1px);
+  border-color: rgba(201, 154, 78, 0.42);
+}
+
+.planner-stop-button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+}
+
+.planner-stop-index {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff8dc;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planner-stop-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.planner-stop-copy strong,
+.planner-leg-card strong {
+  color: var(--green-dark);
+}
+
+.planner-stop-copy small,
+.planner-stop-copy em,
+.planner-leg-card span,
+.planner-leg-card small {
+  color: rgba(27, 33, 27, 0.68);
+  font-size: 12px;
+}
+
+.planner-stop-copy em {
+  font-style: normal;
+}
+
+.planner-leg-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
 @media (max-width: 960px) {
   .planner-panel {
     left: 10px;
@@ -127,6 +234,13 @@
     top: 250px;
     width: min(330px, calc(100vw - 20px));
     max-height: 36vh;
+  }
+
+  .planner-panel-detail {
+    top: 132px;
+    right: 10px;
+    width: min(340px, calc(100vw - 20px));
+    max-height: calc(100vh - 152px);
   }
 }
 
@@ -137,6 +251,15 @@
     bottom: 10px;
     width: min(310px, calc(100vw - 20px));
     max-height: 36vh;
+    padding: 10px;
+  }
+
+  .planner-panel-detail {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    width: min(320px, calc(100vw - 20px));
+    max-height: 42vh;
     padding: 10px;
   }
 
