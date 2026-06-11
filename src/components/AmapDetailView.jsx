@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { loadAmapDetailMapApi } from "../map/amapDetailMap.js";
 import { mountAmapItineraryOverlay } from "../map/amapItineraryOverlay.js";
 import { buildDetailMapOverlayModel } from "../map/detailMapItineraryModel.js";
@@ -176,3 +176,4 @@ export function AmapDetailView({ viewport, itineraryState, selectedNodes, onBack
     </section>
   );
 }
+

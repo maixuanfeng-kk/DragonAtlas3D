@@ -1,4 +1,4 @@
-.planner-panel {
+﻿.planner-panel {
   left: 14px;
   bottom: 14px;
   width: min(360px, calc(100vw - 28px));
@@ -304,3 +304,4 @@
     font-size: 18px;
   }
 }
+

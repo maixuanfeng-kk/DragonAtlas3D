@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { DetailMapPrompt } from "./components/DetailMapPrompt.jsx";
 import { HeroOverlay } from "./components/HeroOverlay.jsx";
 import { HudPanels } from "./components/HudPanels.jsx";
@@ -172,28 +172,6 @@ export default function App() {
     }));
   };
 
-  const enterDetailMap = () => {
-    if (!detailMapViewportRef.current) {
-      return;
-    }
-
-    setDetailMapPromptVisible(false);
-    setDetailMapMode(true);
-  };
-
-  const requestEnterDetailMap = (attempt = 0) => {
-    if (detailMapViewportRef.current) {
-      enterDetailMap();
-      return;
-    }
-
-    if (attempt >= 10) {
-      return;
-    }
-
-    window.setTimeout(() => requestEnterDetailMap(attempt + 1), 120);
-  };
-
   const handleSubmitSearch = async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -342,3 +320,4 @@ export default function App() {
     </div>
   );
 }
+
