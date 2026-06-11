@@ -118,3 +118,23 @@ def test_fetch_primary_leg_returns_failed_leg_when_route_payload_is_empty():
 
     assert leg.status == "failed"
     assert leg.failure_reason == "AMAP_WALKING_EMPTY"
+
+
+def test_fetch_primary_leg_returns_failed_leg_when_key_is_missing():
+    client = FakeClient(FakeResponse(200, {"route": {"paths": []}}))
+    settings = SimpleNamespace(amap_web_key="", amap_web_base_url="https://restapi.amap.com")
+
+    leg = fetch_primary_leg(
+        client=client,
+        settings=settings,
+        origin=[114.3, 30.5],
+        destination=[114.31, 30.51],
+        from_stop_id="jianghan-road",
+        to_stop_id="yellow-crane-tower",
+        mode="walking",
+        mode_label="Walking",
+    )
+
+    assert leg.status == "failed"
+    assert leg.failure_reason == "AMAP_WEB_KEY_MISSING"
+    assert client.calls == []

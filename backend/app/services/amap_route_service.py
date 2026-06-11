@@ -54,6 +54,15 @@ def normalize_amap_path(*, payload: dict, mode: str, mode_label: str, from_stop_
 
 
 def fetch_primary_leg(*, client, settings, origin: list[float], destination: list[float], from_stop_id: str, to_stop_id: str, mode: str, mode_label: str) -> ItineraryLeg:
+    if not getattr(settings, "amap_web_key", ""):
+        return build_failed_leg(
+            from_stop_id=from_stop_id,
+            to_stop_id=to_stop_id,
+            mode=mode,
+            mode_label=mode_label,
+            reason="AMAP_WEB_KEY_MISSING",
+        )
+
     endpoint = ROUTE_ENDPOINTS[mode]
     response = client.get(
         f"{settings.amap_web_base_url}{endpoint}",
