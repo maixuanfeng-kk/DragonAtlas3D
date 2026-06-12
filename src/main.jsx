@@ -6,6 +6,8 @@ import "./styles/map.css";
 import "./styles/panels.css";
 import "./styles/responsive.css";
 import "./travel-planner.css";
+import "./styles/agent-chat.css";
+import "./styles/settings.css";
 import App from "./App.jsx";
 
 [

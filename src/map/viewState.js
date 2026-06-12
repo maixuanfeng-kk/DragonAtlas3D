@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { getAmapWebKey } from "../appConfig.js";
 import { datavBoundaryUrl, datavSingleBoundaryUrl, rasterSourceInfo } from "./dataSources.js";
 import { featureCenter, findFeatureAt } from "./geo.js";
 
@@ -64,7 +65,7 @@ export function initialRasterStats(source = "imagery") {
 }
 
 export function initialPoiSearchState() {
-  const hasKey = Boolean(import.meta.env.VITE_AMAP_WEB_KEY);
+  const hasKey = Boolean(getAmapWebKey());
   return {
     ...AMAP_PLACE_SEARCH_SOURCE,
     status: hasKey ? "pending" : "failed",
@@ -82,7 +83,7 @@ export function initialPoiSearchState() {
 }
 
 export function initialResidentialLayerState() {
-  const hasKey = Boolean(import.meta.env.VITE_AMAP_WEB_KEY);
+  const hasKey = Boolean(getAmapWebKey());
   return {
     ...AMAP_VIEWPORT_POI_SOURCE,
     status: hasKey ? "pending" : "failed",

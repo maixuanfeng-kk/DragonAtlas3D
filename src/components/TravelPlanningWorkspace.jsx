@@ -1,3 +1,4 @@
+import { AgentChat } from "./AgentChat.jsx";
 import { AmapDetailView } from "./AmapDetailView.jsx";
 import { DetailMapPlannerWorkspace } from "./DetailMapPlannerWorkspace.jsx";
 
@@ -12,6 +13,10 @@ export function TravelPlanningWorkspace({
   if (!detailMapMode || !detailMapViewport) {
     return null;
   }
+
+  const itinerarySummary =
+    planner.planState.itinerary?.title ||
+    (planner.planState.days.length ? `${planner.planState.days.length} day(s) planned` : "");
 
   return (
     <>
@@ -28,6 +33,11 @@ export function TravelPlanningWorkspace({
         planner={planner}
         onPreviewNode={onPreviewNode}
         onPreviewNodes={onPreviewNodes}
+      />
+      <AgentChat
+        viewport={detailMapViewport}
+        selectedNodes={planner.selectedNodes}
+        itinerarySummary={itinerarySummary}
       />
     </>
   );

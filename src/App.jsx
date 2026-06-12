@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { DetailMapPrompt } from "./components/DetailMapPrompt.jsx";
 import { HeroOverlay } from "./components/HeroOverlay.jsx";
-import { HudPanels } from "./components/HudPanels.jsx";
+import { SettingsPanel } from "./components/SettingsPanel.jsx";
 import { TravelPlanningWorkspace } from "./components/TravelPlanningWorkspace.jsx";
 import { buildLocationReveal } from "./components/heroCopy.js";
 import { normalizeDestinationQuery } from "./components/searchQuery.js";
@@ -39,7 +39,7 @@ export default function App() {
   const [selectedNode, setSelectedNode] = useState(COUNTRY_NODE);
   const [currentNode, setCurrentNode] = useState(COUNTRY_NODE);
   const [currentFeatures, setCurrentFeatures] = useState([]);
-  const [cameraMode, setCameraMode] = useState("top");
+  const [cameraMode, setCameraMode] = useState("tilt");
   const [search, setSearch] = useState("");
   const [poiSearchState, setPoiSearchState] = useState(initialPoiSearchState());
   const [residentialLayerState, setResidentialLayerState] = useState(initialResidentialLayerState());
@@ -263,24 +263,10 @@ export default function App() {
       {!detailMap.detailMapMode && (
         <>
           <HeroOverlay
-            currentNode={currentNode}
-            stats={stats}
-            poiSearchState={poiSearchState}
-            residentialLayerState={residentialLayerState}
             search={search}
             setSearch={setSearch}
             handleSubmitSearch={handleSubmitSearch}
             locationReveal={locationReveal}
-          />
-
-          <HudPanels
-            trail={trail}
-            cameraMode={cameraMode}
-            setCameraMode={setCameraMode}
-            reset={() => sceneApiRef.current?.reset()}
-            goToTrail={(index) => sceneApiRef.current?.goToTrail(index)}
-            detailEntryEnabled={detailMap.detailEntryEnabled}
-            onEnterDetailMap={detailMap.enterDetailMap}
           />
 
           {detailMap.detailMapPromptVisible && detailMap.detailMapViewport && (
@@ -290,6 +276,8 @@ export default function App() {
               onDismiss={detailMap.dismissDetailMapPrompt}
             />
           )}
+
+          <SettingsPanel />
         </>
       )}
 

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { getAmapWebKey } from "../appConfig.js";
 import { featureBounds, mergeBounds, padBounds } from "./geo.js";
 import { buildLabels, createLabelElements, createLineGroup, createMarkerGroup } from "./overlays.js";
 import { searchRegionForNode } from "./poiLayer.js";
@@ -31,12 +32,13 @@ function deriveSize(bounds, previousSize) {
 }
 
 function updatePoiSearchState(state, node) {
+  const hasKey = Boolean(getAmapWebKey());
   state.callbacks.setPoiSearchState((current) => ({
     ...current,
-    status: current.status === "failed" && !import.meta.env.VITE_AMAP_WEB_KEY ? "failed" : "pending",
+    status: current.status === "failed" && !hasKey ? "failed" : "pending",
     query: "",
     resultCount: 0,
-    error: current.status === "failed" && !import.meta.env.VITE_AMAP_WEB_KEY ? current.error : "",
+    error: current.status === "failed" && !hasKey ? current.error : "",
     regionLabel: searchRegionForNode(node).label,
   }));
 }

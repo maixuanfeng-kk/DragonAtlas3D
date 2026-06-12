@@ -1,3 +1,4 @@
+import { getAmapWebKey } from "../appConfig.js";
 import { AMAP_PLACE_SEARCH_SOURCE, AMAP_VIEWPORT_POI_SOURCE, shortName } from "./viewState.js";
 import {
   VIEWPORT_POI_CATEGORIES,
@@ -7,7 +8,7 @@ import {
   takeRepresentativeFeatures,
 } from "./viewportPois.js";
 
-const AMAP_WEB_KEY = import.meta.env.VITE_AMAP_WEB_KEY || "";
+const AMAP_WEB_KEY = getAmapWebKey();
 const AMAP_PLACE_TEXT_URL = AMAP_PLACE_SEARCH_SOURCE.serviceUrl;
 const AMAP_PLACE_POLYGON_URL = AMAP_VIEWPORT_POI_SOURCE.serviceUrl;
 

@@ -1,6 +1,7 @@
+import { getAmapWebKey } from "../appConfig.js";
 import { COUNTRY_NODE, shortName } from "./viewState.js";
 
-const AMAP_WEB_KEY = import.meta.env?.VITE_AMAP_WEB_KEY || "";
+const AMAP_WEB_KEY = getAmapWebKey();
 
 export const AMAP_DISTRICT_SEARCH_SOURCE = {
   id: "amap-web-district-search",

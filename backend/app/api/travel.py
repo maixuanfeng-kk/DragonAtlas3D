@@ -1,9 +1,20 @@
-import httpx
+"""DragonAtlas3D Travel Agent API — powered by LangGraph.
+
+POST /api/travel/clarify — generate dynamic follow-up questions from map selections.
+POST /api/travel/plan    — generate a multi-day city itinerary with route legs.
+"""
+
 from fastapi import APIRouter
 
-from app.config import get_settings
+from app.agent.runner import run_agent_clarify, run_agent_plan
 from app.models.schemas import (
     FollowUpQuestion,
+    Itinerary,
+    ItineraryDay,
+    ItineraryLeg,
+    ItineraryStop,
+    PoiCard,
+    RouteDay,
     SourceStatus,
     TravelClarifyRequest,
     TravelClarifyResponse,
@@ -11,129 +22,97 @@ from app.models.schemas import (
     TravelPlanResponse,
     Uncertainty,
 )
-from app.services.amap_route_service import build_failed_leg, fetch_primary_leg
-from app.services.city_itinerary_planner import build_city_day_plan
-from app.services.map_projection import build_visit_order_polylines
-from app.services.poi_registry import collect_poi_cards_for_selection
-from app.services.source_registry import build_default_source_statuses, build_source_status
 
 router = APIRouter(prefix="/travel", tags=["travel"])
 
 
-def default_follow_up_questions() -> list[FollowUpQuestion]:
-    return [
-        FollowUpQuestion(id="trip_days_confirm", label="How many days do you want to plan?", options=["1", "2", "3"]),
-        FollowUpQuestion(id="time_bias", label="Do you prefer day or night activity rhythm?", options=["day", "night", "balanced"]),
-    ]
+# ─────────────────────────────────────────────────────────────────
+# Helpers — map agent state → Pydantic response models
+# ─────────────────────────────────────────────────────────────────
+
+def _build_source_statuses(raw: list[dict]) -> list[SourceStatus]:
+    return [SourceStatus.model_validate(item) for item in raw]
 
 
-def build_route_bundle_for_pois(poi_rows: list[dict]) -> tuple[dict[tuple[str, str], object], list[SourceStatus], Uncertainty]:
-    settings = get_settings()
-    leg_lookup = {}
-    failure_items: list[str] = []
+def _build_uncertainty(raw: dict | None) -> Uncertainty | None:
+    if not raw:
+        # Preserve legacy behavior: always return an uncertainty payload.
+        return Uncertainty(level="ready", message="Agent completed with no explicit uncertainty signal.", items=[])
+    return Uncertainty.model_validate(raw)
 
-    with httpx.Client() as client:
-        for start, end in zip(poi_rows, poi_rows[1:]):
-            start_id = start["id"]
-            end_id = end["id"]
-            if not start.get("center") or not end.get("center"):
-                leg = build_failed_leg(
-                    from_stop_id=start_id,
-                    to_stop_id=end_id,
-                    mode="walking",
-                    mode_label="Walking",
-                    reason="MISSING_CENTER",
-                )
-            else:
-                leg = fetch_primary_leg(
-                    client=client,
-                    settings=settings,
-                    origin=start["center"],
-                    destination=end["center"],
-                    from_stop_id=start_id,
-                    to_stop_id=end_id,
-                    mode="walking",
-                    mode_label="Walking",
-                )
-            if leg.status != "ready":
-                failure_items.append(f"{start['name']} -> {end['name']}")
-            leg_lookup[(start_id, end_id)] = leg
 
-    route_status = SourceStatus.model_validate(
-        build_source_status(
-            source_id="amap-route-v2",
-            source_label="Amap Route Planning 2.0",
-            status="partial" if failure_items else "ready",
-            coverage_note="Real city-leg routing for consecutive itinerary stops",
-            provenance="amap-webservice-route-v2",
-            error="; ".join(failure_items),
+def _build_questions(raw: list[dict]) -> list[FollowUpQuestion]:
+    return [FollowUpQuestion.model_validate(q) for q in raw]
+
+
+def _build_selected_nodes(raw: list[dict]) -> list:
+    from app.models.schemas import SelectedNode
+    return [SelectedNode.model_validate(n) for n in raw]
+
+
+def _build_itinerary(raw: dict | None) -> Itinerary | None:
+    if not raw or not raw.get("days"):
+        return None
+    days = [
+        ItineraryDay(
+            day=d.get("day", 1),
+            title=d.get("title", ""),
+            summary=d.get("summary", ""),
+            stops=[ItineraryStop.model_validate(s) for s in d.get("stops", [])],
+            legs=[ItineraryLeg.model_validate(leg) for leg in d.get("legs", [])],
         )
-    )
-    uncertainty = Uncertainty(
-        level="partial" if failure_items else "ready",
-        message="Some route legs are missing real Amap results." if failure_items else "All current route legs use real Amap responses.",
-        items=failure_items,
-    )
-    return leg_lookup, [route_status], uncertainty
+        for d in raw.get("days", [])
+    ]
+    return Itinerary(title=raw.get("title", ""), days=days)
 
+
+def _build_poi_cards(raw: list[dict]) -> list[PoiCard]:
+    return [PoiCard.model_validate(card) for card in raw]
+
+
+def _build_map_route_days(raw: list[dict]) -> list[RouteDay]:
+    return [RouteDay.model_validate(r) for r in raw]
+
+
+# ─────────────────────────────────────────────────────────────────
+# Endpoints
+# ─────────────────────────────────────────────────────────────────
 
 @router.post("/clarify", response_model=TravelClarifyResponse)
 def clarify_trip(request: TravelClarifyRequest) -> TravelClarifyResponse:
-    source_status = [
-        SourceStatus.model_validate(
-            build_source_status(
-                source_id="travel-clarifier",
-                source_label="Travel Clarifier",
-                status="ready",
-                coverage_note="Clarification generated from map context only",
-                provenance="backend-rule-and-llm",
-            ),
-        )
-    ]
+    """Generate dynamic follow-up questions based on map-selected nodes.
+
+    Powered by the LangGraph travel agent in 'clarify' phase.
+    Falls back to rule-based questions if Qwen LLM is unavailable.
+    """
+    state = run_agent_clarify(request.model_dump())
+
     return TravelClarifyResponse(
-        thread_id=request.thread_id,
-        selected_nodes=request.selected_nodes,
-        follow_up_questions=default_follow_up_questions(),
-        source_status=source_status,
-        uncertainty=Uncertainty(level="ready", message="Clarification only; no formal itinerary yet.", items=[]),
+        thread_id=state["thread_id"],
+        selected_nodes=_build_selected_nodes(state.get("selected_nodes", [])),
+        follow_up_questions=_build_questions(state.get("follow_up_questions", [])),
+        source_status=_build_source_statuses(state.get("source_status", [])),
+        uncertainty=_build_uncertainty(state.get("uncertainty")),
     )
 
 
 @router.post("/plan", response_model=TravelPlanResponse)
 def plan_trip(request: TravelPlanRequest) -> TravelPlanResponse:
-    poi_cards = collect_poi_cards_for_selection(request.selected_nodes)
-    poi_rows = [card.model_dump() for card in poi_cards]
-    leg_lookup, route_source_status, route_uncertainty = build_route_bundle_for_pois(poi_rows)
-    itinerary = build_city_day_plan(
-        context=request.model_dump(),
-        poi_rows=poi_rows,
-        leg_lookup=leg_lookup,
-    )
-    map_route_days = build_visit_order_polylines(itinerary.model_dump(), poi_rows)
-    source_status = [
-        SourceStatus.model_validate(item)
-        for item in [
-            *build_default_source_statuses(),
-            *[item.model_dump() for item in route_source_status],
-            build_source_status(
-                source_id="travel-planner",
-                source_label="Travel Planner",
-                status="ready",
-                coverage_note="Same-city itinerary generated from selected places and route legs",
-                provenance="rule-based-city-itinerary-planner",
-            ),
-        ]
-    ]
-    answer = "Generated a same-city itinerary from your selected places."
-    reasoning = "The planner orders selected places into a single city day plan and keeps route-leg failures visible."
+    """Generate a multi-day city itinerary from selected nodes and preferences.
+
+    Powered by the LangGraph travel agent in 'plan' phase.
+    Falls back to the rule-based city_itinerary_planner if Qwen LLM is unavailable.
+    """
+    state = run_agent_plan(request.model_dump())
+
     return TravelPlanResponse(
-        thread_id=request.thread_id,
-        answer=answer,
-        selected_reasoning=reasoning,
-        itinerary=itinerary,
-        map_route_days=map_route_days,
-        poi_cards=poi_cards,
-        source_status=source_status,
-        uncertainty=route_uncertainty,
-        follow_up_questions=[],
+        thread_id=state["thread_id"],
+        answer=state.get("answer", ""),
+        selected_reasoning=state.get("selected_reasoning", ""),
+        itinerary=_build_itinerary(state.get("itinerary")),
+        map_route_days=_build_map_route_days(state.get("map_route_days", [])),
+        poi_cards=_build_poi_cards(state.get("poi_cards", [])),
+        source_status=_build_source_statuses(state.get("source_status", [])),
+        uncertainty=_build_uncertainty(state.get("uncertainty")),
+        follow_up_questions=_build_questions(state.get("follow_up_questions", [])),
     )

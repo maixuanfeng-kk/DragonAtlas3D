@@ -1,9 +1,10 @@
 export const DETAIL_MAP_TRIGGER_MAX_SPAN = 0.2;
 export const DETAIL_MAP_RESET_MIN_SPAN = 0.28;
+const DETAIL_MAP_RESET_MAX_SPAN = 4.0;
 
 const DETAIL_MAP_TRIGGER_SPANS = {
   country: 3.2,
-  province: 1.2,
+  province: 7.0,
   city: 0.42,
   district: 0.2,
   township: 0.12,
@@ -15,7 +16,8 @@ export function detailMapTriggerSpanForLevel(level = "district") {
 }
 
 function detailMapResetSpanForLevel(level = "district") {
-  return Math.max(DETAIL_MAP_RESET_MIN_SPAN, detailMapTriggerSpanForLevel(level) * 1.15);
+  const raw = detailMapTriggerSpanForLevel(level) * 1.15;
+  return Math.min(DETAIL_MAP_RESET_MAX_SPAN, Math.max(DETAIL_MAP_RESET_MIN_SPAN, raw));
 }
 
 function zoomFromSpan(span) {
@@ -44,14 +46,38 @@ function zoomFromSpan(span) {
   return 11;
 }
 
+function _getAmapWebKey() {
+  try {
+    const ls = localStorage.getItem("da3d_amap_web_key");
+    if (ls) return ls;
+  } catch { /* ignore */ }
+  return import.meta.env.VITE_AMAP_WEB_KEY || "";
+}
+
+function _getAmapJsKey() {
+  try {
+    const ls = localStorage.getItem("da3d_amap_js_key");
+    if (ls) return ls;
+  } catch { /* ignore */ }
+  return import.meta.env.VITE_AMAP_JS_KEY || "";
+}
+
+function _getAmapJsSecurityCode() {
+  try {
+    const ls = localStorage.getItem("da3d_amap_js_security_code");
+    if (ls) return ls;
+  } catch { /* ignore */ }
+  return import.meta.env.VITE_AMAP_JS_SECURITY_CODE || "";
+}
+
 export function hasAmapJsApiKey() {
-  return Boolean(import.meta.env.VITE_AMAP_JS_KEY || import.meta.env.VITE_AMAP_WEB_KEY);
+  return Boolean(_getAmapJsKey() || _getAmapWebKey());
 }
 
 export function resolveAmapJsCredentials() {
-  const jsKey = String(import.meta.env.VITE_AMAP_JS_KEY || "").trim();
-  const fallbackKey = String(import.meta.env.VITE_AMAP_WEB_KEY || "").trim();
-  const securityJsCode = String(import.meta.env.VITE_AMAP_JS_SECURITY_CODE || "").trim();
+  const jsKey = _getAmapJsKey().trim();
+  const fallbackKey = _getAmapWebKey().trim();
+  const securityJsCode = _getAmapJsSecurityCode().trim();
   const key = jsKey || fallbackKey;
 
   return {

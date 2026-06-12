@@ -61,12 +61,6 @@ export function DetailMapPlannerWorkspace({
     })();
   }, []);
 
-  useEffect(() => {
-    if (planner.selectedNodes.length) {
-      onPreviewNode?.(planner.selectedNodes[planner.selectedNodes.length - 1]);
-    }
-  }, [onPreviewNode, planner.selectedNodes]);
-
   const handleSearch = async (event) => {
     event.preventDefault();
     const keyword = query.trim();

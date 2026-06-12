@@ -1,19 +1,91 @@
-.hero-overlay,
-.hud,
-.toast,
-#loading-mask {
-  z-index: 4;
-}
 
 .hero-overlay {
   position: fixed;
-  inset: max(18px, env(safe-area-inset-top)) auto auto max(18px, env(safe-area-inset-left));
-  width: min(640px, calc(100vw - 36px));
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
   pointer-events: none;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
 }
 
-.hero-shell,
-.hud,
+.hero-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 10px 18px;
+  border: 1px solid rgba(246, 219, 164, 0.12);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(6, 15, 26, 0.78), rgba(7, 17, 28, 0.48));
+  box-shadow: 0 8px 32px rgba(2, 6, 12, 0.3);
+  backdrop-filter: blur(14px) saturate(120%);
+  pointer-events: auto;
+  animation: hero-fade-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hero-brand {
+  color: #f4f0df;
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.hero-hint {
+  color: rgba(231, 239, 247, 0.56);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.hero-search {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.hero-search input {
+  width: 260px;
+  min-height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f6f3e7;
+  font-size: 13px;
+}
+
+.hero-search input::placeholder {
+  color: rgba(235, 241, 247, 0.38);
+}
+
+.hero-search button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 214, 150, 0.22);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(201, 154, 78, 0.88), rgba(152, 109, 42, 0.94));
+  color: #11161f;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 180ms ease;
+}
+
+.hero-search button:hover {
+  transform: translateY(-1px);
+}
+
+/* ── Shared card chrome ────────────────────────────────────────── */
 .location-reveal-card,
 .toast,
 .loading-card {
@@ -27,146 +99,6 @@
   backdrop-filter: blur(18px) saturate(120%);
 }
 
-.hero-shell {
-  padding: 24px 24px 18px;
-  border-radius: 28px;
-  pointer-events: auto;
-  animation: hero-fade-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.hero-kicker,
-.panel-title,
-.loading-tag {
-  margin: 0;
-  color: rgba(245, 220, 163, 0.84);
-  font-family: "Orbitron", sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-}
-
-.hero-shell h1,
-.location-reveal-card h2,
-.info-dock h2,
-.loading-card h2 {
-  margin: 0;
-  color: #f4f0df;
-  text-wrap: balance;
-}
-
-.hero-shell h1 {
-  margin-top: 16px;
-  font-size: clamp(2.25rem, 5vw, 4.7rem);
-  line-height: 0.96;
-  letter-spacing: -0.05em;
-}
-
-.hero-subline,
-.reveal-caption,
-.loading-card p {
-  color: rgba(231, 239, 247, 0.72);
-  line-height: 1.75;
-}
-
-.hero-subline {
-  max-width: 36rem;
-  margin: 16px 0 0;
-  font-size: 15px;
-}
-
-.hero-search {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.hero-search input,
-.hero-search button,
-.mode-dock button,
-.trail-dock button,
-.ghost-button {
-  min-height: 48px;
-  border-radius: 16px;
-  transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease,
-    color 180ms ease;
-}
-
-.hero-search input {
-  min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0 18px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f6f3e7;
-}
-
-.hero-search input::placeholder {
-  color: rgba(235, 241, 247, 0.42);
-}
-
-.hero-search button,
-.mode-dock button.is-active,
-.trail-dock button.is-current {
-  border: 1px solid rgba(255, 214, 150, 0.22);
-  background:
-    linear-gradient(135deg, rgba(201, 154, 78, 0.88), rgba(152, 109, 42, 0.94));
-  color: #11161f;
-  font-weight: 800;
-}
-
-.hero-search button:hover,
-.mode-dock button:hover,
-.trail-dock button:hover,
-.ghost-button:hover {
-  transform: translateY(-1px);
-}
-
-.hero-status-row,
-.selected-meta,
-.reveal-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hero-status-row {
-  margin-top: 16px;
-}
-
-.hero-status-row span,
-.selected-meta span,
-.reveal-meta span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 11px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(233, 239, 245, 0.78);
-  font-size: 12px;
-}
-
-.hero-note {
-  margin: 12px 0 0;
-  color: rgba(183, 203, 221, 0.76);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.hero-overlay.is-condensed .hero-shell {
-  width: min(540px, calc(100vw - 36px));
-  padding: 18px 20px 16px;
-}
-
-.hero-overlay.is-condensed .hero-shell h1 {
-  margin-top: 10px;
-  font-size: clamp(1.8rem, 4vw, 3rem);
-}
 
 .location-reveal-card {
   position: fixed;

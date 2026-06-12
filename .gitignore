@@ -3,6 +3,8 @@ dist
 .vite
 .tmp
 .env.local
+.env
+backend/.env
 *.log
 .edge-profile/
 /*.png
