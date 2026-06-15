@@ -136,6 +136,7 @@ class TravelPlanResponse(BaseModel):
     source_status: list[SourceStatus]
     uncertainty: Uncertainty
     follow_up_questions: list[FollowUpQuestion] = Field(default_factory=list)
+    thinking_steps: list[dict] = Field(default_factory=list)
 
 
 class PoiExtractRequest(BaseModel):

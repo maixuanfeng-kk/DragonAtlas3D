@@ -39,9 +39,12 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
 
   // ── Draggable state ──────────────────────────────────────────
   const [panelPos, setPanelPos] = useState({ x: 0, y: 0 });
+  const [panelSize, setPanelSize] = useState({ w: 340, h: 420 });
   const dragging = useRef(false);
+  const resizing = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
+  const sizeStart = useRef({ w: 340, h: 420 });
   const panelRef = useRef(null);
 
   const listRef = useRef(null);
@@ -101,6 +104,30 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
     document.body.style.cursor = "";
   }, []);
 
+  // ── Resize handlers ──────────────────────────────────────────
+  const handleResizeStart = useCallback(
+    (clientX, clientY) => {
+      resizing.current = true;
+      dragStart.current = { x: clientX, y: clientY };
+      sizeStart.current = { w: panelSize.w, h: panelSize.h };
+      document.body.style.userSelect = "none";
+    },
+    [panelSize],
+  );
+
+  const handleResizeMove = useCallback((clientX, clientY) => {
+    if (!resizing.current) return;
+    setPanelSize({
+      w: Math.max(260, Math.min(800, sizeStart.current.w + (clientX - dragStart.current.x))),
+      h: Math.max(280, Math.min(900, sizeStart.current.h + (clientY - dragStart.current.y))),
+    });
+  }, []);
+
+  const handleResizeEnd = useCallback(() => {
+    resizing.current = false;
+    document.body.style.userSelect = "";
+  }, []);
+
   const onHeaderMouseDown = useCallback(
     (e) => {
       e.preventDefault();
@@ -124,12 +151,19 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
     const onMove = (e) => {
       if (e.touches) {
         const touch = e.touches[0];
-        if (touch) handleDragMove(touch.clientX, touch.clientY);
+        if (touch) {
+          handleDragMove(touch.clientX, touch.clientY);
+          handleResizeMove(touch.clientX, touch.clientY);
+        }
       } else {
         handleDragMove(e.clientX, e.clientY);
+        handleResizeMove(e.clientX, e.clientY);
       }
     };
-    const onEnd = () => handleDragEnd();
+    const onEnd = () => {
+      handleDragEnd();
+      handleResizeEnd();
+    };
 
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onEnd);
@@ -142,7 +176,7 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
-  }, [handleDragMove, handleDragEnd]);
+  }, [handleDragMove, handleDragEnd, handleResizeMove, handleResizeEnd]);
 
   // ── Send message ─────────────────────────────────────────────
   const handleSend = async () => {
@@ -212,10 +246,13 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
     setOpen(true);
   };
 
-  const panelStyle =
-    panelPos.x || panelPos.y
+  const panelStyle = {
+    width: panelSize.w,
+    height: panelSize.h,
+    ...(panelPos.x || panelPos.y
       ? { left: panelPos.x, top: panelPos.y, right: "auto", bottom: "auto" }
-      : undefined;
+      : {}),
+  };
 
   return (
     <>
@@ -310,6 +347,16 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
                   <p>{msg.content}</p>
                   {msg.time && <time>{msg.time}</time>}
                 </div>
+                {msg.sourceStatus && msg.sourceStatus.length > 0 && (
+                  <div className="agent-chat-status">
+                    {msg.sourceStatus.map((s) => (
+                      <span key={s.source_id} className={`agent-chat-status-dot is-${s.status}`} title={s.error || s.coverage_note} />
+                    ))}
+                    <span className="agent-chat-status-text">
+                      {msg.sourceStatus.map((s) => s.source_label).join(" · ")}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -371,6 +418,25 @@ export function AgentChat({ viewport, selectedNodes, itinerarySummary }) {
               )}
             </button>
           </form>
+
+          {/* Resize handle — bottom-right corner */}
+          <div
+            className="agent-chat-resize-handle"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleResizeStart(e.clientX, e.clientY);
+            }}
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              if (touch) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleResizeStart(touch.clientX, touch.clientY);
+              }
+            }}
+            aria-label="拖拽调整面板大小"
+          />
         </div>
       )}
     </>

@@ -98,6 +98,7 @@ export function useTravelPlanner(setNotice) {
           poiCards: response.poi_cards || [],
           sourceStatus: response.source_status || [],
           uncertainty: response.uncertainty || null,
+          thinkingSteps: response.thinking_steps || [],
           error: "",
         });
       });

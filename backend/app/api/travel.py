@@ -115,4 +115,5 @@ def plan_trip(request: TravelPlanRequest) -> TravelPlanResponse:
         source_status=_build_source_statuses(state.get("source_status", [])),
         uncertainty=_build_uncertainty(state.get("uncertainty")),
         follow_up_questions=_build_questions(state.get("follow_up_questions", [])),
+        thinking_steps=state.get("thinking_steps", []),
     )

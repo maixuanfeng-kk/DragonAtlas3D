@@ -10,6 +10,7 @@ export function createInitialTravelClarifyState() {
     questions: [],
     sourceStatus: [],
     uncertainty: null,
+    thinkingSteps: [],
     error: "",
   };
 }
@@ -28,6 +29,7 @@ export function createInitialTravelPlanState() {
     poiCards: [],
     sourceStatus: [],
     uncertainty: null,
+    thinkingSteps: [],
     error: "",
   };
 }

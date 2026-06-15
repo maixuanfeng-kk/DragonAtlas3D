@@ -36,6 +36,17 @@ export function DetailMapPlannerWorkspace({
   const activeDayPlan = planner.planState.days.find((day) => day.day === planner.planState.activeDay) || planner.planState.days[0] || null;
   const sourceStatuses = planner.planState.sourceStatus.length ? planner.planState.sourceStatus : planner.clarifyState.sourceStatus;
   const uncertainty = planner.planState.uncertainty || planner.clarifyState.uncertainty;
+  const thinkingSteps = planner.planState.thinkingSteps || [];
+  const [showThinking, setShowThinking] = useState(false);
+
+  // Derive generation mode badge from source_status
+  const agentStatus = sourceStatuses.find((s) => s.source_id === "itinerary-agent");
+  const drafterStatus = sourceStatuses.find((s) => s.source_id === "itinerary-drafter");
+  const genBadge = agentStatus
+    ? { label: "Agent autonomous planning", level: agentStatus.status, detail: agentStatus.coverage_note }
+    : drafterStatus
+      ? { label: "Rule engine fallback", level: drafterStatus.status, detail: drafterStatus.coverage_note }
+      : null;
 
   useEffect(() => {
     void (async () => {
@@ -231,8 +242,34 @@ export function DetailMapPlannerWorkspace({
       {planner.planState.answer && (
         <div className="planner-block">
           <strong>行程摘要</strong>
+          {genBadge && (
+            <span className={`planner-gen-badge is-${genBadge.level}`} title={genBadge.detail}>
+              {genBadge.label}
+            </span>
+          )}
           <p className="planner-copy">{planner.planState.answer}</p>
           <p className="planner-copy is-muted">{planner.planState.selectedReasoning}</p>
+          {thinkingSteps.length > 0 && (
+            <div className="planner-thinking-wrap">
+              <button
+                type="button"
+                className={`planner-thinking-toggle ${showThinking ? "is-open" : ""}`}
+                onClick={() => setShowThinking((v) => !v)}
+              >
+                {showThinking ? "Hide agent thinking" : "Show agent thinking"} ({thinkingSteps.length} steps)
+              </button>
+              {showThinking && (
+                <div className="planner-thinking-log">
+                  {thinkingSteps.map((s, i) => (
+                    <div key={i} className={`planner-thinking-step is-${s.action}`}>
+                      <span className="planner-thinking-step-num">{s.step}</span>
+                      <span>{s.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
