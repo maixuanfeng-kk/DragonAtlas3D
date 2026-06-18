@@ -134,3 +134,23 @@ def test_poi_extract_reports_failed_when_qwen_not_configured():
     body = response.json()
     assert body["job_status"] == "failed"
     assert any(item["status"] == "failed" for item in body["source_status"])
+
+
+def test_agent_chat_returns_kb_source_status():
+    payload = {
+        "thread_id": "kb-1",
+        "message": "黄鹤楼有什么特点？",
+        "context": {
+            "current_city": "wuhan",
+            "active_pois": [],
+            "itinerary_summary": "",
+        },
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/api/agent/chat", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert any(item["source_id"] == "kb-retrieval" for item in body["source_status"])
+    assert any(item["source_id"] == "kb-ingest" for item in body["source_status"])
