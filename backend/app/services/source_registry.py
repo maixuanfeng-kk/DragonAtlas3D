@@ -37,4 +37,11 @@ def build_default_source_statuses() -> list[dict]:
             coverage_note="Only seed-backed nodes can be projected to the map",
             provenance="backend/data/wuhan_seed_nodes.json",
         ),
+        build_source_status(
+            source_id="kb-retrieval",
+            source_label="Wuhan Tourism KB Retrieval",
+            status="pending",
+            coverage_note="Chat RAG retrieval status for the local Wuhan tourism knowledge base.",
+            provenance="backend/data/wuhan_tourism_kb.jsonl;backend/data/wuhan_tourism_pois.json",
+        ),
     ]
