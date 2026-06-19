@@ -544,7 +544,7 @@ def _rule_plan(state: AgentState, agent_statuses: list[dict] | None = None) -> d
     """
     from app.services.city_itinerary_planner import build_city_day_plan
 
-    poi_rows = state.get("poi_cards", [])
+    poi_rows = [dict(row) for row in state.get("poi_cards", [])]
 
     # Layer 2: enrich with direct Amap search if thin
     if len(poi_rows) < 3:

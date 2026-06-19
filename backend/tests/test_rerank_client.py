@@ -10,7 +10,7 @@ def test_rerank_client_posts_to_reranks_endpoint(monkeypatch):
 
         def json(self):
             return {
-                "data": [
+                "results": [
                     {"index": 1, "relevance_score": 0.95},
                     {"index": 0, "relevance_score": 0.61},
                 ]
@@ -36,4 +36,7 @@ def test_rerank_client_posts_to_reranks_endpoint(monkeypatch):
     assert results[0]["index"] == 1
     assert captured["url"] == "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
     assert captured["json"]["model"] == "qwen3-rerank"
+    assert captured["json"]["query"] == "黄鹤楼有什么特点"
+    assert captured["json"]["documents"] == ["A", "B"]
+    assert "input" not in captured["json"]
     assert captured["json"]["top_n"] == 2

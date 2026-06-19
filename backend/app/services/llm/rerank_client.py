@@ -14,10 +14,11 @@ class RerankClient:
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": self.model,
-                "input": {"query": query, "documents": documents},
+                "query": query,
+                "documents": documents,
                 "top_n": top_n,
             },
             timeout=self.timeout_seconds,
         )
         response.raise_for_status()
-        return response.json().get("data", [])
+        return response.json().get("results", [])
