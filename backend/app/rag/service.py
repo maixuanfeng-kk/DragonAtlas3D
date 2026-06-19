@@ -211,7 +211,8 @@ def _apply_rerank(
 
 def _ensure_ingested(session: Session, embedding_client: EmbeddingClient | None) -> tuple[dict, str]:
     snapshot = build_ingest_status_snapshot(session)
-    if snapshot["chunks"] > 0:
+    needs_embedding_backfill = snapshot["chunks"] > 0 and snapshot["embedded_chunks"] <= 0 and embedding_client is not None
+    if snapshot["chunks"] > 0 and not needs_embedding_backfill:
         return snapshot, ""
 
     try:

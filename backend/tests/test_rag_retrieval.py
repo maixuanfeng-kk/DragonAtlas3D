@@ -156,3 +156,80 @@ def test_retrieve_chat_evidence_applies_rerank_when_configured():
 
     assert evidence_rows[0]["content"] == captured["documents"][1]
     assert any(item["source_id"] == "kb-rerank" and item["status"] == "ready" for item in source_status)
+
+
+def test_retrieve_chat_evidence_reingests_to_backfill_embeddings_when_provider_is_added():
+    from sqlmodel import Session, SQLModel, create_engine, select
+
+    from app.config import Settings
+    from app.models.tables_rag import KbChunkRecord, KbDocumentRecord, KbIngestJobRecord
+    from app.rag.service import retrieve_chat_evidence
+
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(
+        engine,
+        tables=[KbDocumentRecord.__table__, KbChunkRecord.__table__, KbIngestJobRecord.__table__],
+    )
+
+    class FakeEmbeddingClient:
+        def __init__(self):
+            self.calls = []
+
+        def embed_texts(self, texts):
+            self.calls.append(list(texts))
+            return [[0.5, 0.25, 0.125] for _ in texts]
+
+    embedding_client = FakeEmbeddingClient()
+
+    with Session(engine) as session:
+        session.add(
+            KbDocumentRecord(
+                document_id="doc-yellow-crane",
+                source_type="structured_poi",
+                source_path="backend/data/wuhan_tourism_pois.json",
+                source_record_id="yellow-crane-tower",
+                title="Yellow Crane Tower",
+                city="wuhan",
+                district="Wuchang",
+                doc_type="poi_card",
+                tags_json=["landmark"],
+                raw_payload={},
+            )
+        )
+        session.add(
+            KbChunkRecord(
+                chunk_id="doc-yellow-crane-chunk-0",
+                document_id="doc-yellow-crane",
+                chunk_index=0,
+                content="Yellow Crane Tower is a landmark with skyline views over the Yangtze River.",
+                city="wuhan",
+                district="Wuchang",
+                topic_tags_json=["landmark"],
+                poi_ids_json=["yellow-crane-tower"],
+                metadata_json={"category": "landmark"},
+            )
+        )
+        session.commit()
+
+        _, source_status = retrieve_chat_evidence(
+            session=session,
+            message="What is special about Yellow Crane Tower?",
+            context={"current_city": "wuhan", "active_pois": ["Yellow Crane Tower"]},
+            settings=Settings(
+                database_url="sqlite://",
+                rag_retrieval_candidates=10,
+                rag_top_k=5,
+                embedding_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                embedding_api_key="test-key",
+                embedding_model="text-embedding-v4",
+                embedding_dimensions=3,
+            ),
+            embedding_client=embedding_client,
+        )
+
+        refreshed_chunks = session.exec(select(KbChunkRecord)).all()
+
+    assert embedding_client.calls
+    assert refreshed_chunks
+    assert any(chunk.embedding is not None for chunk in refreshed_chunks)
+    assert any(item["source_id"] == "kb-embedding" and item["status"] == "ready" for item in source_status)
